@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Sort a sample email or text into urgent work and low priority. Hear a sound for routine messages and a sound plus spoken alert for urgent work.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23122c3d'/%3E%3Cpath d='M16 37h8l6-16 8 24 5-11h5' fill='none' stroke='%239de4dc' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <title>Signal — alert voice prototype</title>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #142638; background: #f5f7f7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid #276e9a; outline-offset: 2px; }
+    .top { background: #122c3d; color: white; padding: 16px max(24px, calc((100vw - 1180px) / 2)); }
+    .top-inner { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 21px; font-weight: 750; letter-spacing: -.04em; }
+    .mark { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; color: #122c3d; background: #9de4dc; font-size: 20px; }
+    .top-meta { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #b4cfda; }
+    main { max-width: 1228px; margin: 0 auto; padding: 24px 24px 64px; }
+    .intro { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; }
+    h1 { font-size: clamp(27px, 3vw, 36px); line-height: 1.12; letter-spacing: -.045em; margin: 4px 0 8px; max-width: 660px; }
+    .lede { color: #526775; font-size: 16px; line-height: 1.5; margin: 0; max-width: 650px; }
+    .eyebrow { color: #bd563f; text-transform: uppercase; letter-spacing: .13em; font-weight: 800; font-size: 11px; }
+    .badge { color: #31566a; background: #e6f0f1; padding: 9px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+    .switch { display: inline-flex; align-items: center; gap: 9px; background: white; border: 1px solid #dce5e7; border-radius: 12px; padding: 10px 12px; font-size: 14px; font-weight: 650; }
+    .switch input { accent-color: #136d70; width: 17px; height: 17px; margin: 0; }
+    .panel { border: 1px solid #dce5e7; border-radius: 20px; background: white; box-shadow: 0 10px 32px rgba(18, 44, 61, .045); }
+    .compose { padding: 24px; margin-bottom: 24px; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 18px; }
+    h2 { letter-spacing: -.03em; margin: 0; font-size: 21px; }
+    .hint { color: #718491; font-size: 13px; }
+    .fields { display: grid; grid-template-columns: 150px 1fr 1fr; gap: 13px; }
+    .field { display: flex; flex-direction: column; gap: 6px; color: #3b5360; font-size: 14px; font-weight: 700; }
+    .field input, .field textarea, .field select { border: 1px solid #cedbdf; border-radius: 10px; padding: 11px 12px; width: 100%; min-width: 0; background: #fbfdfd; color: #183141; font-size: 16px; font-weight: 450; }
+    .field textarea { min-height: 82px; resize: vertical; line-height: 1.45; }
+    .span-all { grid-column: 1 / -1; }
+    .compose-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 15px; }
+    .check { display: flex; align-items: center; gap: 8px; color: #526775; font-size: 14px; }
+    .check input { accent-color: #136d70; }
+    .actions { display: flex; gap: 9px; flex-wrap: wrap; }
+    .primary { border: 1px solid #143b49; background: #143b49; color: white; }
+    .secondary { border: 1px solid #cfdbde; background: white; color: #264454; }
+    .primary, .secondary { border-radius: 10px; padding: 10px 15px; font-size: 14px; font-weight: 700; }
+    .primary:hover { background: #245b68; }
+    .secondary:hover { background: #f0f5f5; }
+    .inbox-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 6px 0 14px; }
+    .columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .lane { padding: 18px; min-height: 280px; }
+    .lane.urgent { border-top: 5px solid #db694c; }
+    .lane.low { border-top: 5px solid #44aca3; }
+    .lane-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+    .lane h3 { font-size: 18px; letter-spacing: -.025em; margin: 0; }
+    .count { border-radius: 999px; background: #eaf0f1; color: #405c68; padding: 4px 9px; font-size: 12px; font-weight: 750; }
+    .lane-desc { color: #718491; font-size: 14px; margin: 4px 0 17px; }
+    .cards { display: grid; gap: 10px; }
+    .card { background: #fcfdfd; border: 1px solid #e0e8ea; border-radius: 13px; padding: 15px; }
+    .card-top { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+    .channel { color: #677f8c; font-size: 10px; letter-spacing: .09em; text-transform: uppercase; font-weight: 800; }
+    .card h4 { margin: 6px 0 4px; font-size: 15px; line-height: 1.3; }
+    .sender { color: #546a78; font-size: 12px; overflow-wrap: anywhere; }
+    .preview { color: #405b68; font-size: 14px; line-height: 1.48; margin: 12px 0; overflow-wrap: anywhere; }
+    .why { background: #eff5f5; color: #42616a; font-size: 12px; line-height: 1.4; border-radius: 8px; padding: 9px 10px; }
+    .card-actions { display: flex; gap: 11px; flex-wrap: wrap; margin-top: 12px; }
+    .text-button { border: 0; padding: 2px 0; background: none; color: #185f76; font-size: 14px; font-weight: 750; }
+    .text-button:hover { text-decoration: underline; }
+    .empty { color: #718491; border: 1px dashed #d5e1e3; padding: 22px; text-align: center; border-radius: 10px; font-size: 14px; }
+    details { margin-top: 23px; }
+    details summary { cursor: pointer; font-size: 14px; font-weight: 750; color: #264454; }
+    .settings { margin-top: 14px; padding: 21px; }
+    .setting-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .settings p, .footnote { color: #58707d; font-size: 14px; line-height: 1.55; }
+    .settings textarea { min-height: 92px; }
+    .status { min-height: 20px; color: #47616e; font-size: 14px; margin: 10px 0 0; }
+    .footnote { margin-top: 22px; }
+    @media (max-width: 750px) { .intro { align-items: start; flex-direction: column; } .fields { grid-template-columns: 1fr; } .columns, .setting-grid { grid-template-columns: 1fr; } .top-meta { display: none; } main { padding: 27px 15px 48px; } .compose { padding: 18px; } }
+  </style>
+</head>
+<body>
+  <header class="top"><div class="top-inner"><div class="brand"><span class="mark" aria-hidden="true">◖</span> Signal</div><div class="top-meta">Make interruptions understandable</div></div></header>
+  <main>
+    <section class="intro"><div><div class="eyebrow">Interactive prototype</div><h1>Know what needs you without checking your phone.</h1><p class="lede">Test an email or text. Low priority gets a soft sound; urgent work gets a distinct sound and a spoken alert.</p></div><span class="badge">Demo messages only</span></section>
+
+    <div class="controls" aria-label="Alert preferences">
+      <label class="switch"><input id="soundEnabled" type="checkbox" checked> Play sounds</label>
+      <label class="switch"><input id="voiceEnabled" type="checkbox" checked> Speak urgent alerts</label>
+      <button class="secondary" id="previewUrgent" type="button">▶ Urgent voice</button>
+      <button class="secondary" id="previewLow" type="button">▶ Low priority sound</button>
+    </div>
+
+    <section class="panel compose" aria-labelledby="test-heading">
+      <div class="panel-head"><h2 id="test-heading">Test an incoming message</h2><span class="hint">Nothing is sent or stored online</span></div>
+      <form id="messageForm">
+        <div class="fields">
+          <label class="field">Type<select id="channel"><option>Email</option><option>Text</option></select></label>
+          <label class="field">From<input id="sender" type="text" required placeholder="dispatch@team.example"></label>
+          <label class="field" id="subjectField">Subject<input id="subject" type="text" placeholder="Route blocked — call me now"></label>
+          <label class="field span-all">Message<textarea id="body" placeholder="A customer is waiting. Please call me now."></textarea></label>
+        </div>
+        <div class="compose-foot"><label class="check"><input id="subscription" type="checkbox"> This email is a newsletter or subscription</label><div class="actions"><button class="secondary" id="loadExamples" type="button">Load examples</button><button class="primary" type="submit">Sort &amp; announce →</button></div></div>
+      </form>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <div class="inbox-head"><h2>Sorted inbox</h2><button class="text-button" id="clearMessages" type="button">Clear demo</button></div>
+    <section class="columns" aria-label="Sorted messages">
+      <div class="panel lane urgent"><div class="lane-head"><h3>🔴 Urgent / Job</h3><span class="count" id="urgentCount">0</span></div><p class="lane-desc">Trusted work source + time-sensitive action, or an always-urgent contact</p><div class="cards" id="urgentCards"></div></div>
+      <div class="panel lane low"><div class="lane-head"><h3>🟢 Low Priority / Subscription</h3><span class="count" id="lowCount">0</span></div><p class="lane-desc">Newsletters, routine work, and messages that can wait</p><div class="cards" id="lowCards"></div></div>
+    </section>
+
+    <details><summary>Adjust the sorting rules</summary><div class="panel settings"><p>Only a trusted work sender with an urgent action can enter the urgent column. Put one email, phone number, or work domain per line. Use <strong>@team.example</strong> for a whole domain. Always-urgent contacts skip the phrase check. These settings stay in this browser.</p><div class="setting-grid"><label class="field">Trusted work senders and domains<textarea id="trustedSources"></textarea></label><label class="field">Always-urgent contacts<textarea id="alwaysUrgent"></textarea></label></div><p>Subscription signals take precedence, even if a subject says “URGENT.” Normal work mail stays in Low Priority until it asks for immediate action. You can move a message manually if the rule gets it wrong.</p><button class="secondary" id="saveRules" type="button">Save rules</button></div></details>
+    <p class="footnote">This page is a local prototype. It does not receive live email or texts in the background. Phone integration requires separate Android and iPhone connections; iPhone text access is more limited.</p>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+      const defaultSettings = {
+        trustedSources: "@team.example\ndispatch@examplework.com\n+15550101234",
+        alwaysUrgent: ""
+      };
+      function entries(value) { return String(value || "").split(/[\n,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean); }
+      function senderMatches(sender, rules) {
+        const value = String(sender || "").trim().toLowerCase();
+        const email = (value.match(/[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}/) || [])[0] || "";
+        const phone = value.replace(/\D/g, "");
+        return entries(rules).some(rule => {
+          if (rule.startsWith("@")) return !!email && email.endsWith(rule) && email.length > rule.length;
+          if (rule.includes("@")) return email === rule;
+          const digits = rule.replace(/\D/g, "");
+          return digits.length >= 7 && phone === digits;
+        });
+      }
+      function classify(message, settings) {
+        const sender = String(message.sender || "");
+        const content = [message.subject, message.body].filter(Boolean).join(" ").toLowerCase();
+        const subscription = !!message.subscription || /\b(unsubscribe|newsletter|subscription|weekly digest|special offer|promo code|flash sale)\b/i.test(content);
+        if (subscription) return { bucket: "low", reason: "Subscription or marketing signal detected." };
+        if (senderMatches(sender, settings.alwaysUrgent)) return { bucket: "urgent", reason: "Sender is on your always-urgent list." };
+        const trusted = senderMatches(sender, settings.trustedSources);
+        const noRush = /\b(no rush|not urgent|when you have time|for your information|fyi only)\b/i.test(content);
+        const immediate = /\b(urgent|asap|immediately|emergency|outage|blocked|time-sensitive|right away|call me now|reply now|respond now|need you now|within (?:the next |an? )?(?:hour|30 minutes))\b/i.test(content);
+        if (trusted && immediate && !noRush) return { bucket: "urgent", reason: "Trusted work sender + immediate action in the message." };
+        if (trusted) return { bucket: "low", reason: noRush ? "Work sender says this can wait." : "Work sender, but no immediate action was found." };
+        return { bucket: "low", reason: immediate ? "Urgent wording alone is insufficient without a trusted sender." : "No trusted urgent-work signal found." };
+      }
+      window.AlertTriage = Object.freeze({ classify, defaultSettings });
+    }());
+  </script>
+  <script>
+    (function () {
+      "use strict";
+      const $ = id => document.getElementById(id);
+      const { classify, defaultSettings } = window.AlertTriage;
+      let messages = [];
+      let nextId = 1;
+      let audioContext;
+      const storageKey = "signal-alert-demo-settings-v1";
+      let settings = defaultSettings;
+      try { settings = { ...defaultSettings, ...JSON.parse(localStorage.getItem(storageKey) || "{}") }; } catch (_) { /* Private browsing may prevent storage. */ }
+      $("trustedSources").value = settings.trustedSources;
+      $("alwaysUrgent").value = settings.alwaysUrgent;
+      function setStatus(value) { $("status").textContent = value; }
+      function tone(frequency, start, duration, volume, context) {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(volume, start + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+        oscillator.connect(gain).connect(context.destination);
+        oscillator.start(start);
+        oscillator.stop(start + duration + 0.02);
+      }
+      function announce(bucket) {
+        if ($("soundEnabled").checked) {
+          try {
+            audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === "suspended") audioContext.resume();
+            const now = audioContext.currentTime + 0.02;
+            if (bucket === "urgent") { tone(690, now, .16, .15, audioContext); tone(900, now + .21, .25, .17, audioContext); }
+            else { tone(440, now, .30, .08, audioContext); }
+          } catch (_) { setStatus("Sound playback is unavailable in this browser."); }
+        }
+        if (bucket === "urgent" && $("voiceEnabled").checked && "speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance("Urgent job message. Please check.");
+          utterance.rate = 1.05;
+          utterance.volume = .9;
+          window.speechSynthesis.speak(utterance);
+        }
+      }
+      function addMessage(message, speak = true) {
+        const result = classify(message, settings);
+        messages.unshift({ ...message, ...result, id: nextId++ });
+        render();
+        if (speak) announce(result.bucket);
+        setStatus(result.bucket === "urgent" ? "Sorted into Urgent / Job." : "Sorted into Low Priority / Subscription.");
+      }
+      function el(tag, className, value) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (value !== undefined) node.textContent = value;
+        return node;
+      }
+      function renderCard(item) {
+        const card = el("article", "card");
+        const top = el("div", "card-top");
+        top.append(el("span", "channel", item.channel));
+        card.append(top, el("h4", "", item.subject || (item.channel === "Text" ? "New text message" : "(No subject)")), el("div", "sender", item.sender));
+        if (item.body) card.append(el("p", "preview", item.body));
+        card.append(el("div", "why", item.reason));
+        const actions = el("div", "card-actions");
+        const play = el("button", "text-button", item.bucket === "urgent" ? "▶ Play sound + voice" : "▶ Play sound");
+        play.type = "button";
+        play.addEventListener("click", () => announce(item.bucket));
+        const move = el("button", "text-button", item.bucket === "urgent" ? "Move to Low Priority" : "Move to Urgent / Job");
+        move.type = "button";
+        move.addEventListener("click", () => {
+          item.bucket = item.bucket === "urgent" ? "low" : "urgent";
+          item.reason = "Manually moved for this demo message. Edit the rules to change future sorting.";
+          render();
+          announce(item.bucket);
+        });
+        actions.append(play, move);
+        card.append(actions);
+        return card;
+      }
+      function render() {
+        for (const bucket of ["urgent", "low"]) {
+          const container = $(bucket + "Cards");
+          container.replaceChildren();
+          const selected = messages.filter(x => x.bucket === bucket);
+          $(bucket + "Count").textContent = String(selected.length);
+          if (!selected.length) container.append(el("div", "empty", "Messages will appear here after sorting."));
+          else for (const item of selected) container.append(renderCard(item));
+        }
+      }
+      $("messageForm").addEventListener("submit", event => {
+        event.preventDefault();
+        addMessage({ channel: $("channel").value, sender: $("sender").value.trim(), subject: $("channel").value === "Email" ? $("subject").value.trim() : "", body: $("body").value.trim(), subscription: $("subscription").checked });
+        $("subject").value = "";
+        $("body").value = "";
+        $("subscription").checked = false;
+      });
+      $("channel").addEventListener("change", () => { $("subjectField").hidden = $("channel").value === "Text"; });
+      $("loadExamples").addEventListener("click", () => {
+        messages = [];
+        const examples = [
+          { channel: "Email", sender: "dispatch@team.example", subject: "Route blocked — call me now", body: "A customer is waiting and we need you now." },
+          { channel: "Text", sender: "+1 (555) 010-1234", body: "Delivery is blocked. Please call me now." },
+          { channel: "Email", sender: "schedule@team.example", subject: "Next week's rota", body: "Please review when you have time." },
+          { channel: "Email", sender: "offers@shop.example", subject: "URGENT: flash sale", body: "50% off today. Unsubscribe at any time.", subscription: true },
+          { channel: "Text", sender: "+1 (555) 010-9876", body: "Your subscription has been renewed." }
+        ];
+        for (const example of examples) addMessage(example, false);
+        setStatus("Five examples sorted. Select Play on a card to hear its alert.");
+      });
+      $("clearMessages").addEventListener("click", () => { messages = []; render(); setStatus("Demo inbox cleared."); });
+      $("previewUrgent").addEventListener("click", () => announce("urgent"));
+      $("previewLow").addEventListener("click", () => announce("low"));
+      $("saveRules").addEventListener("click", () => {
+        settings = { trustedSources: $("trustedSources").value, alwaysUrgent: $("alwaysUrgent").value };
+        try { localStorage.setItem(storageKey, JSON.stringify(settings)); setStatus("Sorting rules saved in this browser. New messages use them."); }
+        catch (_) { setStatus("Rules are active now, but this browser did not allow saving them."); }
+      });
+      if (document.modelContext && typeof document.modelContext.registerTool === "function") {
+        const lifecycle = new AbortController();
+        window.addEventListener("pagehide", () => lifecycle.abort(), { once: true });
+        try {
+          Promise.resolve(document.modelContext.registerTool({
+            name: "sort_message",
+            title: "Sort a message",
+            description: "Add a sample email or text to the visible inbox, classify it, and play its category alert.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                channel: { type: "string", enum: ["Email", "Text"] },
+                sender: { type: "string" },
+                subject: { type: "string" },
+                body: { type: "string" },
+                subscription: { type: "boolean" }
+              },
+              required: ["channel", "sender"],
+              additionalProperties: false
+            },
+            annotations: { readOnlyHint: false, untrustedContentHint: false },
+            execute(input) {
+              if (!input || typeof input !== "object" || !["Email", "Text"].includes(input.channel) || typeof input.sender !== "string" || !input.sender.trim() || (input.subject !== undefined && typeof input.subject !== "string") || (input.body !== undefined && typeof input.body !== "string") || (input.subscription !== undefined && typeof input.subscription !== "boolean")) {
+                throw new Error("Provide an email or text with a sender and valid message fields.");
+              }
+              addMessage({ channel: input.channel, sender: input.sender.trim(), subject: input.channel === "Email" ? (input.subject || "") : "", body: input.body || "", subscription: !!input.subscription });
+              return { bucket: messages[0].bucket, reason: messages[0].reason };
+            }
+          }, { signal: lifecycle.signal })).catch(() => {});
+        } catch (_) { /* Tool support is optional in browsers. */ }
+      }
+      render();
+    }());
+  </script>
+</body>
+</html>
