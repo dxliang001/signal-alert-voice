@@ -76,23 +76,41 @@
     .settings textarea { min-height: 92px; }
     .status { min-height: 20px; color: #47616e; font-size: 14px; margin: 10px 0 0; }
     .footnote { margin-top: 22px; }
+    .setup { padding: 20px; margin-bottom: 18px; }
+    .setup p { color: #526775; line-height: 1.5; }
+    .sender-rule { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    .sender-rule select { min-width: 0; max-width: 100%; flex: 1; border: 1px solid #cedbdf; border-radius: 8px; padding: 8px; font-size: 14px; background: white; color: #183141; }
+    .audio-status { color: #47616e; font-size: 14px; margin: -7px 0 20px; }
+    .channel { font-size: 12px; }
     @media (max-width: 750px) { .intro { align-items: start; flex-direction: column; } .fields { grid-template-columns: 1fr; } .columns, .setting-grid { grid-template-columns: 1fr; } .top-meta { display: none; } main { padding: 27px 15px 48px; } .compose { padding: 18px; } }
   </style>
 </head>
 <body>
   <header class="top"><div class="top-inner"><div class="brand"><span class="mark" aria-hidden="true">◖</span> Signal</div><div class="top-meta">Make interruptions understandable</div></div></header>
   <main>
-    <section class="intro"><div><div class="eyebrow">Interactive prototype</div><h1>Know what needs you without checking your phone.</h1><p class="lede">Test an email or text. Low priority gets a soft sound; urgent work gets a distinct sound and a spoken alert.</p></div><span class="badge">Demo messages only</span></section>
+    <section class="intro"><div><div class="eyebrow">Focus on school. Focus on work.</div><h1>Hear what needs your attention.</h1><p class="lede">Trusted, time-sensitive messages get a sound and voice. Routine messages get a soft sound. Try it with sample messages.</p></div><span class="badge">Demo messages only</span></section>
+
+    <section class="panel setup" aria-labelledby="setup-heading">
+      <h2 id="setup-heading">1. Choose who matters</h2>
+      <p>Add a professor, classmate, manager, or client you trust. A trusted contact still needs an urgent request to trigger voice.</p>
+      <form id="contactForm" class="actions">
+        <label class="field">Email or phone<input id="contactInput" type="text" required placeholder="professor@school.edu" autocomplete="off"></label>
+        <button class="secondary" type="submit">Add trusted contact</button>
+      </form>
+      <p id="contactStatus" role="status">Sample work and school contacts are included. Edit them in sorting rules below.</p>
+    </section>
 
     <div class="controls" aria-label="Alert preferences">
       <label class="switch"><input id="soundEnabled" type="checkbox" checked> Play sounds</label>
       <label class="switch"><input id="voiceEnabled" type="checkbox" checked> Speak urgent alerts</label>
       <button class="secondary" id="previewUrgent" type="button">▶ Urgent voice</button>
       <button class="secondary" id="previewLow" type="button">▶ Low priority sound</button>
+      <button class="secondary" id="stopAlerts" type="button">Stop alerts</button>
     </div>
+    <p class="audio-status" id="audioStatus" role="status" aria-live="polite">Audio ready. Preview an alert to check this browser's sound and voice.</p>
 
     <section class="panel compose" aria-labelledby="test-heading">
-      <div class="panel-head"><h2 id="test-heading">Test an incoming message</h2><span class="hint">Nothing is sent or stored online</span></div>
+      <div class="panel-head"><h2 id="test-heading">2. Test an incoming message</h2><span class="hint">Nothing is sent or stored online</span></div>
       <form id="messageForm">
         <div class="fields">
           <label class="field">Type<select id="channel"><option>Email</option><option>Text</option></select></label>
@@ -100,18 +118,18 @@
           <label class="field" id="subjectField">Subject<input id="subject" type="text" placeholder="Route blocked — call me now"></label>
           <label class="field span-all">Message<textarea id="body" placeholder="A customer is waiting. Please call me now."></textarea></label>
         </div>
-        <div class="compose-foot"><label class="check"><input id="subscription" type="checkbox"> This email is a newsletter or subscription</label><div class="actions"><button class="secondary" id="loadExamples" type="button">Load examples</button><button class="primary" type="submit">Sort &amp; announce →</button></div></div>
+        <div class="compose-foot"><label class="check"><input id="subscription" type="checkbox"> This message is a newsletter or subscription</label><div class="actions"><button class="secondary" id="loadExamples" type="button">Load examples</button><button class="secondary" id="loadEdgeCases" type="button">Try tricky messages</button><button class="primary" type="submit">Sort &amp; announce →</button></div></div>
       </form>
       <p class="status" id="status" role="status" aria-live="polite"></p>
     </section>
 
     <div class="inbox-head"><h2>Sorted inbox</h2><button class="text-button" id="clearMessages" type="button">Clear demo</button></div>
     <section class="columns" aria-label="Sorted messages">
-      <div class="panel lane urgent"><div class="lane-head"><h3>🔴 Urgent / Job</h3><span class="count" id="urgentCount">0</span></div><p class="lane-desc">Trusted work source + time-sensitive action, or an always-urgent contact</p><div class="cards" id="urgentCards"></div></div>
+      <div class="panel lane urgent"><div class="lane-head"><h3>🔴 Urgent / Job</h3><span class="count" id="urgentCount">0</span></div><p class="lane-desc">Time-sensitive school or work · distinct sound + voice</p><div class="cards" id="urgentCards"></div></div>
       <div class="panel lane low"><div class="lane-head"><h3>🟢 Low Priority / Subscription</h3><span class="count" id="lowCount">0</span></div><p class="lane-desc">Newsletters, routine work, and messages that can wait</p><div class="cards" id="lowCards"></div></div>
     </section>
 
-    <details><summary>Adjust the sorting rules</summary><div class="panel settings"><p>Only a trusted work sender with an urgent action can enter the urgent column. Put one email, phone number, or work domain per line. Use <strong>@team.example</strong> for a whole domain. Always-urgent contacts skip the phrase check. These settings stay in this browser.</p><div class="setting-grid"><label class="field">Trusted work senders and domains<textarea id="trustedSources"></textarea></label><label class="field">Always-urgent contacts<textarea id="alwaysUrgent"></textarea></label></div><p>Subscription signals take precedence, even if a subject says “URGENT.” Normal work mail stays in Low Priority until it asks for immediate action. You can move a message manually if the rule gets it wrong.</p><button class="secondary" id="saveRules" type="button">Save rules</button></div></details>
+    <details><summary>Adjust the sorting rules</summary><div class="panel settings"><p>Put one email or phone number per line. Use <strong>@team.example</strong> only if you trust an entire domain. Trusted contacts need an immediate request or a deadline today or tonight. Always-urgent contacts skip that check. These preferences stay in this browser.</p><div class="setting-grid"><label class="field">Trusted school / work contacts<textarea id="trustedSources"></textarea></label><label class="field">Always-urgent contacts<textarea id="alwaysUrgent"></textarea></label><label class="field">Subscription senders · always low priority<textarea id="subscriptionSources"></textarea></label></div><p>Subscription signals always take precedence. “No rush” and “not urgent” keep ordinary trusted messages low priority. Rules use simple phrases, so review the reason and correct mistakes. Saved rule changes re-sort the visible messages without playing alerts.</p><button class="secondary" id="saveRules" type="button">Save rules</button></div></details>
     <p class="footnote">This page is a local prototype. It does not receive live email or texts in the background. Phone integration requires separate Android and iPhone connections; iPhone text access is more limited.</p>
   </main>
 
@@ -119,8 +137,9 @@
     (function () {
       "use strict";
       const defaultSettings = {
-        trustedSources: "@team.example\ndispatch@examplework.com\n+15550101234",
-        alwaysUrgent: ""
+        trustedSources: "@team.example\ndispatch@examplework.com\n+15550101234\nprofessor@campus.example\nrecruiter@careers.example",
+        alwaysUrgent: "",
+        subscriptionSources: ""
       };
       function entries(value) { return String(value || "").split(/[\n,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean); }
       function senderMatches(sender, rules) {
@@ -137,14 +156,16 @@
       function classify(message, settings) {
         const sender = String(message.sender || "");
         const content = [message.subject, message.body].filter(Boolean).join(" ").toLowerCase();
+        if (senderMatches(sender, settings.subscriptionSources)) return { bucket: "low", reason: "You marked this sender as a subscription." };
         const subscription = !!message.subscription || /\b(unsubscribe|newsletter|subscription|weekly digest|special offer|promo code|flash sale)\b/i.test(content);
         if (subscription) return { bucket: "low", reason: "Subscription or marketing signal detected." };
         if (senderMatches(sender, settings.alwaysUrgent)) return { bucket: "urgent", reason: "Sender is on your always-urgent list." };
         const trusted = senderMatches(sender, settings.trustedSources);
         const noRush = /\b(no rush|not urgent|when you have time|for your information|fyi only)\b/i.test(content);
-        const immediate = /\b(urgent|asap|immediately|emergency|outage|blocked|time-sensitive|right away|call me now|reply now|respond now|need you now|within (?:the next |an? )?(?:hour|30 minutes))\b/i.test(content);
-        if (trusted && immediate && !noRush) return { bucket: "urgent", reason: "Trusted work sender + immediate action in the message." };
-        if (trusted) return { bucket: "low", reason: noRush ? "Work sender says this can wait." : "Work sender, but no immediate action was found." };
+        const deadline = /\b(?:due|deadline(?: is)?|submit(?: by)?|reply by|respond by)\s+(?:today|tonight)\b/i.test(content);
+        const immediate = deadline || /\b(urgent|asap|immediately|emergency|outage|blocked|time-sensitive|right away|call me now|reply now|respond now|need you now|within (?:the next |an? )?(?:hour|30 minutes))\b/i.test(content);
+        if (trusted && immediate && !noRush) return { bucket: "urgent", reason: deadline ? "Trusted school/work contact + deadline today or tonight." : "Trusted school/work contact + request for immediate action." };
+        if (trusted) return { bucket: "low", reason: noRush ? "Trusted contact says this can wait." : "Trusted contact, but no immediate action was found." };
         return { bucket: "low", reason: immediate ? "Urgent wording alone is insufficient without a trusted sender." : "No trusted urgent-work signal found." };
       }
       window.AlertTriage = Object.freeze({ classify, defaultSettings });
@@ -160,9 +181,43 @@
       let audioContext;
       const storageKey = "signal-alert-demo-settings-v1";
       let settings = defaultSettings;
-      try { settings = { ...defaultSettings, ...JSON.parse(localStorage.getItem(storageKey) || "{}") }; } catch (_) { /* Private browsing may prevent storage. */ }
-      $("trustedSources").value = settings.trustedSources;
-      $("alwaysUrgent").value = settings.alwaysUrgent;
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+        settings = Object.fromEntries(Object.entries(defaultSettings).map(([key, value]) => [key, typeof saved?.[key] === "string" ? saved[key] : value]));
+      } catch (_) { /* Private browsing may prevent storage. */ }
+      function syncRules() {
+        for (const key of Object.keys(defaultSettings)) $(key).value = settings[key];
+      }
+      syncRules();
+      function persistRules() {
+        try { localStorage.setItem(storageKey, JSON.stringify(settings)); return true; }
+        catch (_) { return false; }
+      }
+      function resort() {
+        for (const item of messages) Object.assign(item, classify(item, settings));
+        render();
+      }
+      function contactKey(value) {
+        const text = String(value).trim().toLowerCase();
+        const email = text.match(/^[^\s<>@]+@[^\s<>@]+\.[a-z]{2,}$/i);
+        if (email) return text;
+        if (/^\+?[\d\s().-]+$/.test(text) && text.replace(/\D/g, "").length >= 7) return text.replace(/\D/g, "");
+        return "";
+      }
+      function rememberSender(sender, key) {
+        const contact = contactKey(sender);
+        if (!contact) { setStatus("Use a complete email address or phone number to save a sender rule."); return; }
+        const keys = Object.keys(defaultSettings);
+        for (const field of keys) {
+          const list = settings[field].split(/[\n,;]+/).map(x => x.trim()).filter(Boolean).filter(x => contactKey(x) !== contact);
+          if (field === key) list.push(contact);
+          settings = { ...settings, [field]: list.join("\n") };
+        }
+        syncRules(); resort();
+        const saved = persistRules();
+        const result = saved ? "Sender rule saved. Visible messages re-sorted silently." : "Rule active for this session; this browser could not save it.";
+        setStatus(result); $("contactStatus").textContent = result;
+      }
       function setStatus(value) { $("status").textContent = value; }
       function tone(frequency, start, duration, volume, context) {
         const oscillator = context.createOscillator();
@@ -176,23 +231,74 @@
         oscillator.start(start);
         oscillator.stop(start + duration + 0.02);
       }
-      function announce(bucket) {
-        if ($("soundEnabled").checked) {
+      const alertQueue = [];
+      let activeAlert = null;
+      let alertTimer;
+      let alertGeneration = 0;
+      function audioStatus(value) { $("audioStatus").textContent = value; }
+      function stopAlerts() {
+        alertGeneration++; alertQueue.length = 0; activeAlert = null;
+        clearTimeout(alertTimer);
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        if (audioContext) { audioContext.close?.(); audioContext = null; }
+        audioStatus("Alerts stopped. New messages can still play alerts.");
+      }
+      function playNext() {
+        if (activeAlert || !alertQueue.length) return;
+        activeAlert = alertQueue.shift();
+        const bucket = activeAlert;
+        const generation = alertGeneration;
+        let completed = false;
+        const finish = () => {
+          if (completed || generation !== alertGeneration) return;
+          completed = true; clearTimeout(alertTimer); activeAlert = null;
+          if (alertQueue.length) playNext();
+          else audioStatus("Audio ready. All queued alerts finished.");
+        };
+        const fail = message => { finish(); audioStatus(message); };
+        const speak = () => {
+          if (generation !== alertGeneration) return;
+          if (bucket !== "urgent" || !$("voiceEnabled").checked) { finish(); return; }
+          if (!("speechSynthesis" in window)) { fail("Voice is unavailable in this browser. Urgent messages still appear in their column."); return; }
           try {
-            audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-            if (audioContext.state === "suspended") audioContext.resume();
+            const utterance = new SpeechSynthesisUtterance("Urgent message. Please check.");
+            utterance.rate = 1.05; utterance.volume = .9;
+            utterance.onend = finish;
+            utterance.onerror = () => { if (generation === alertGeneration) fail("Voice could not play. Check browser audio permissions and try the preview."); };
+            alertTimer = setTimeout(() => {
+              if (generation !== alertGeneration) return;
+              utterance.onend = utterance.onerror = null;
+              window.speechSynthesis.cancel();
+              fail("Voice timed out. Try the preview again or stop alerts.");
+            }, 15000);
+            window.speechSynthesis.speak(utterance);
+          } catch (_) { fail("Voice could not start in this browser."); }
+        };
+        audioStatus(bucket === "urgent" ? "Playing urgent alert. Following alerts wait their turn." : "Playing low priority sound. No voice.");
+        const playSound = () => {
+          if (generation !== alertGeneration) return;
+          try {
             const now = audioContext.currentTime + 0.02;
             if (bucket === "urgent") { tone(690, now, .16, .15, audioContext); tone(900, now + .21, .25, .17, audioContext); }
             else { tone(440, now, .30, .08, audioContext); }
-          } catch (_) { setStatus("Sound playback is unavailable in this browser."); }
+            alertTimer = setTimeout(speak, bucket === "urgent" ? 520 : 360);
+          } catch (_) { speak(); audioStatus("Sound playback is unavailable in this browser."); }
+        };
+        if ($("soundEnabled").checked) {
+          try {
+            audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === "suspended") {
+              alertTimer = setTimeout(() => { if (generation === alertGeneration) fail("Audio could not start. Check browser permissions and try the preview."); }, 5000);
+              audioContext.resume().then(() => { if (!completed && generation === alertGeneration) { clearTimeout(alertTimer); playSound(); } }).catch(() => { if (!completed && generation === alertGeneration) { clearTimeout(alertTimer); speak(); audioStatus("Sound could not start. Try the audio preview."); } });
+            } else playSound();
+          } catch (_) { speak(); audioStatus("Sound playback is unavailable in this browser."); }
+        } else speak();
+      }
+      function announce(bucket) {
+        if (!$("soundEnabled").checked && (bucket !== "urgent" || !$("voiceEnabled").checked)) {
+          audioStatus("This alert is muted by your audio preferences."); return;
         }
-        if (bucket === "urgent" && $("voiceEnabled").checked && "speechSynthesis" in window) {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance("Urgent job message. Please check.");
-          utterance.rate = 1.05;
-          utterance.volume = .9;
-          window.speechSynthesis.speak(utterance);
-        }
+        alertQueue.push(bucket); playNext();
       }
       function addMessage(message, speak = true) {
         const result = classify(message, settings);
@@ -228,6 +334,18 @@
         });
         actions.append(play, move);
         card.append(actions);
+        const senderRule = el("div", "sender-rule");
+        const choice = el("select");
+        choice.setAttribute("aria-label", "Future messages from " + item.sender);
+        for (const [value, label] of [["", "Remember a rule for this sender…"], ["trustedSources", "Trust school / work contact"], ["alwaysUrgent", "Always prioritize sender"], ["subscriptionSources", "Treat sender as subscription"]]) {
+          const option = el("option", "", label); option.value = value; choice.append(option);
+        }
+        const apply = el("button", "secondary", "Apply"); apply.type = "button";
+        apply.addEventListener("click", () => {
+          if (!choice.value) { setStatus("Choose a sender rule first."); return; }
+          rememberSender(item.sender, choice.value);
+        });
+        senderRule.append(choice, apply); card.append(senderRule);
         return card;
       }
       function render() {
@@ -251,22 +369,42 @@
       $("loadExamples").addEventListener("click", () => {
         messages = [];
         const examples = [
-          { channel: "Email", sender: "dispatch@team.example", subject: "Route blocked — call me now", body: "A customer is waiting and we need you now." },
-          { channel: "Text", sender: "+1 (555) 010-1234", body: "Delivery is blocked. Please call me now." },
+          { channel: "Email", sender: "professor@campus.example", subject: "Assignment due today", body: "Please submit your final assignment today." },
+          { channel: "Email", sender: "recruiter@careers.example", subject: "Interview confirmation needed", body: "Please respond within the next hour to confirm your interview." },
           { channel: "Email", sender: "schedule@team.example", subject: "Next week's rota", body: "Please review when you have time." },
           { channel: "Email", sender: "offers@shop.example", subject: "URGENT: flash sale", body: "50% off today. Unsubscribe at any time.", subscription: true },
           { channel: "Text", sender: "+1 (555) 010-9876", body: "Your subscription has been renewed." }
         ];
         for (const example of examples) addMessage(example, false);
-        setStatus("Five examples sorted. Select Play on a card to hear its alert.");
+        setStatus("Five examples sorted using your saved rules. Default rules give 2 urgent and 3 low priority. Select Play to hear each alert.");
       });
-      $("clearMessages").addEventListener("click", () => { messages = []; render(); setStatus("Demo inbox cleared."); });
+      $("loadEdgeCases").addEventListener("click", () => {
+        messages = [];
+        for (const example of [
+          { sender: "stranger@unknown.example", subject: "URGENT reply now", body: "Please send the document immediately." },
+          { sender: "professor@campus.example", subject: "URGENT department newsletter", body: "Weekly digest. Unsubscribe here." },
+          { sender: "manager@team.example", subject: "Review the plan", body: "Not urgent. When you have time." },
+          { sender: "professor@campus.example", subject: "Assignment due tomorrow", body: "A reminder about tomorrow's assignment." },
+          { sender: "professor@campus.example", subject: "Lecture notes", body: "Here are the slides from class." }
+        ]) addMessage({ ...example, channel: "Email" }, false);
+        setStatus("Five tricky messages sorted silently. Default rules keep all five low priority; saved sender rules may change this.");
+      });
+      $("clearMessages").addEventListener("click", () => { stopAlerts(); messages = []; render(); setStatus("Demo inbox cleared."); });
+      $("stopAlerts").addEventListener("click", stopAlerts);
+      for (const id of ["soundEnabled", "voiceEnabled"]) $(id).addEventListener("change", stopAlerts);
+      window.addEventListener("pagehide", stopAlerts);
+      $("contactForm").addEventListener("submit", event => {
+        event.preventDefault();
+        const contact = contactKey($("contactInput").value);
+        if (!contact) { $("contactStatus").textContent = "Enter a complete email address or phone number (at least 7 digits)."; return; }
+        rememberSender(contact, "trustedSources"); $("contactInput").value = "";
+      });
       $("previewUrgent").addEventListener("click", () => announce("urgent"));
       $("previewLow").addEventListener("click", () => announce("low"));
       $("saveRules").addEventListener("click", () => {
-        settings = { trustedSources: $("trustedSources").value, alwaysUrgent: $("alwaysUrgent").value };
-        try { localStorage.setItem(storageKey, JSON.stringify(settings)); setStatus("Sorting rules saved in this browser. New messages use them."); }
-        catch (_) { setStatus("Rules are active now, but this browser did not allow saving them."); }
+        settings = Object.fromEntries(Object.keys(defaultSettings).map(key => [key, $(key).value]));
+        resort();
+        setStatus(persistRules() ? "Sorting rules saved. Visible messages re-sorted silently." : "Rules active for this session, but this browser could not save them.");
       });
       if (document.modelContext && typeof document.modelContext.registerTool === "function") {
         const lifecycle = new AbortController();
