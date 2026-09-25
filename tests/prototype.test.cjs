@@ -29,6 +29,7 @@ function app(saved = {}) {
   };
   vm.createContext(context);
   const html = fs.readFileSync(require('node:path').join(__dirname, '../dist/index.html'), 'utf8');
+  for (const match of html.matchAll(/\bid="([^"]+)"/g)) context.document.getElementById(match[1]);
   for (const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) vm.runInContext(match[1], context);
   return { nodes, speech, tones, context, saved: () => saved, cancels: () => cancels,
     click(id) { nodes[id].handlers.click(); },
@@ -120,4 +121,30 @@ test('failed speech releases the queue, and timed-out speech is canceled', () =>
 test('tricky examples are all low, and corrupted stored preferences recover', () => {
   const a = app({ trustedSources:42, alwaysUrgent:null }); a.click('loadEdgeCases');
   assert.equal(a.nodes.urgentCount.textContent, '0'); assert.equal(a.nodes.lowCount.textContent, '5');
+});
+
+test('scam-like examples stay low and each playback is sound only', () => {
+  const a = app(); a.click('loadScamExamples');
+  assert.equal(a.nodes.urgentCount.textContent, '0'); assert.equal(a.nodes.lowCount.textContent, '5');
+  assert.equal(a.tones.length, 0);
+  for (const card of a.nodes.lowCards.children) {
+    card.children.find(n => n.className === 'card-actions').children[0].handlers.click();
+    a.tick();
+  }
+  assert.deepEqual(a.tones, [440,440,440,440,440]); assert.equal(a.speech.length, 0);
+});
+
+test('all benchmark messages reach the correct column and audio path through the form', () => {
+  for (const sample of require('./classification-cases.json')) {
+    const a = app(sample.settings);
+    a.nodes.channel.value = 'Email'; a.nodes.sender.value = sample.sender;
+    a.nodes.subject.value = sample.subject || ''; a.nodes.body.value = sample.body || '';
+    a.nodes.subscription.checked = !!sample.subscription;
+    a.nodes.messageForm.handlers.submit({ preventDefault() {} });
+    const urgent = sample.expected === 'urgent';
+    assert.equal(a.nodes.urgentCount.textContent, urgent ? '1' : '0', sample.id);
+    assert.equal(a.nodes.lowCount.textContent, urgent ? '0' : '1', sample.id);
+    assert.deepEqual(a.tones, urgent ? [690,900] : [440], sample.id);
+    a.tick(); assert.equal(a.speech.length, urgent ? 1 : 0, sample.id);
+  }
 });

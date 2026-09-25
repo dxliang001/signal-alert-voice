@@ -118,7 +118,7 @@
           <label class="field" id="subjectField">Subject<input id="subject" type="text" placeholder="Route blocked — call me now"></label>
           <label class="field span-all">Message<textarea id="body" placeholder="A customer is waiting. Please call me now."></textarea></label>
         </div>
-        <div class="compose-foot"><label class="check"><input id="subscription" type="checkbox"> This message is a newsletter or subscription</label><div class="actions"><button class="secondary" id="loadExamples" type="button">Load examples</button><button class="secondary" id="loadEdgeCases" type="button">Try tricky messages</button><button class="primary" type="submit">Sort &amp; announce →</button></div></div>
+        <div class="compose-foot"><label class="check"><input id="subscription" type="checkbox"> This message is a newsletter or subscription</label><div class="actions"><button class="secondary" id="loadExamples" type="button">Load examples</button><button class="secondary" id="loadEdgeCases" type="button">Try tricky messages</button><button class="secondary" id="loadScamExamples" type="button">Try scam-like messages</button><button class="primary" type="submit">Sort &amp; announce →</button></div></div>
       </form>
       <p class="status" id="status" role="status" aria-live="polite"></p>
     </section>
@@ -130,7 +130,8 @@
     </section>
 
     <details><summary>Adjust the sorting rules</summary><div class="panel settings"><p>Put one email or phone number per line. Use <strong>@team.example</strong> only if you trust an entire domain. Trusted contacts need an immediate request or a deadline today or tonight. Always-urgent contacts skip that check. These preferences stay in this browser.</p><div class="setting-grid"><label class="field">Trusted school / work contacts<textarea id="trustedSources"></textarea></label><label class="field">Always-urgent contacts<textarea id="alwaysUrgent"></textarea></label><label class="field">Subscription senders · always low priority<textarea id="subscriptionSources"></textarea></label></div><p>Subscription signals always take precedence. “No rush” and “not urgent” keep ordinary trusted messages low priority. Rules use simple phrases, so review the reason and correct mistakes. Saved rule changes re-sort the visible messages without playing alerts.</p><button class="secondary" id="saveRules" type="button">Save rules</button></div></details>
-    <p class="footnote">This page is a local prototype. It does not receive live email or texts in the background. Phone integration requires separate Android and iPhone connections; iPhone text access is more limited.</p>
+    <p class="footnote"><strong>Priority is not a safety verdict.</strong> Urgent wording cannot make an unknown sender trusted. This demo matches the address you enter; it cannot authenticate senders, scan links, or detect every scam. An address that matches your contacts can still be spoofed. Low priority does not mean safe to open.</p>
+    <p class="footnote">Demo messages only; no live email or texts. Rules recognize immediate requests, action within an hour, and deadlines today or tonight. They can miss context, so use the explanation on each card and correct mistakes.</p>
   </main>
 
   <script>
@@ -142,40 +143,84 @@
         subscriptionSources: ""
       };
       function entries(value) { return String(value || "").split(/[\n,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean); }
-      function senderMatches(sender, rules) {
-        const value = String(sender || "").trim().toLowerCase();
-        const email = (value.match(/[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}/) || [])[0] || "";
-        const phone = value.replace(/\D/g, "");
-        return entries(rules).some(rule => {
-          if (rule.startsWith("@")) return !!email && email.endsWith(rule) && email.length > rule.length;
-          if (rule.includes("@")) return email === rule;
-          const digits = rule.replace(/\D/g, "");
-          return digits.length >= 7 && phone === digits;
-        });
+      // Parse one identity, never an address or phone-like substring inside other text.
+      // Matching this typed value is not authentication of a real email sender.
+      function parseSender(sender) {
+        let value = String(sender || "").trim().toLowerCase();
+        const mailbox = value.match(/^[^<>\r\n]*<([^<>\r\n]+)>$/);
+        if (mailbox) value = mailbox[1].trim();
+        if (/^[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(value)) {
+          const [local, domain] = value.split("@");
+          if (local.startsWith(".") || local.endsWith(".") || local.includes("..")) return null;
+          return { type: "email", value, domain };
+        }
+        if (!mailbox && /^\+?[\d\s().-]+$/.test(value)) {
+          const digits = value.replace(/\D/g, "");
+          if (digits.length >= 7 && digits.length <= 15) return { type: "phone", value: digits };
+        }
+        return null;
+      }
+      function matchingRule(identity, rules) {
+        if (!identity) return "";
+        return entries(rules).find(rule => {
+          if (rule.startsWith("@")) return identity.type === "email" && identity.domain === rule.slice(1);
+          const target = parseSender(rule);
+          return target && identity.type === target.type && identity.value === target.value;
+        }) || "";
+      }
+      function currentSegments(value) {
+        return String(value || "").split(/\r?\n/).filter(line => !/^\s*>/.test(line))
+          .join("\n").split(/[.!?;\n]+|\bbut\b/i).map(x => x.trim()).filter(Boolean);
+      }
+      function inactiveContext(text) {
+        if (/\b(no rush|not urgent|not an emergency|when you have time|for your information|fyi only|no (?:action|response|reply) (?:is )?(?:needed|required))\b/i.test(text)) return "explicitly says it can wait";
+        if (/\b(?:is|was|has been|now|already)\s+(?:resolved|fixed|restored|cancelled|canceled)\b|\b(?:outage|issue|incident|interview|meeting|emergency)\s+(?:resolved|fixed|cancelled|canceled)\b/i.test(text)) return "describes a resolved or canceled event";
+        if (/\b(?:deadline|due date)\b.{0,60}\b(?:extended|postponed)\b/i.test(text)) return "announces an extended or postponed deadline";
+        return "";
+      }
+      function urgentSignal(text) {
+        if (inactiveContext(text)) return null;
+        const deadline = text.match(/\b(?:due|deadline(?: is)?|submit(?: by)?|reply by|respond by)\s+(?:today|tonight)\b/i);
+        if (deadline) return { rule: "Same-day deadline", phrase: deadline[0] };
+        const near = text.match(/\b(?:in|within)\s+(?:the next\s+)?(?:(\d{1,3})\s+minutes?|(?:(?:an?|one)\s+)?hour)\b/i);
+        const action = /\b(?:cover|join|confirm|submit|reply|respond|call|attend|send|finish|complete|approve|review)\b/i.test(text);
+        if (near && action && (!near[1] || (+near[1] > 0 && +near[1] <= 60))) return { rule: "Action within an hour", phrase: near[0] };
+        const immediate = text.match(/\b(urgent|asap|immediately|emergency|outage|blocked|time-sensitive|right away|call me now|reply now|respond now|need you now)\b/i);
+        return immediate ? { rule: "Immediate request", phrase: immediate[0] } : null;
       }
       function classify(message, settings) {
-        const sender = String(message.sender || "");
-        const content = [message.subject, message.body].filter(Boolean).join(" ").toLowerCase();
-        if (senderMatches(sender, settings.subscriptionSources)) return { bucket: "low", reason: "You marked this sender as a subscription." };
-        const subscription = !!message.subscription || /\b(unsubscribe|newsletter|subscription|weekly digest|special offer|promo code|flash sale)\b/i.test(content);
-        if (subscription) return { bucket: "low", reason: "Subscription or marketing signal detected." };
-        if (senderMatches(sender, settings.alwaysUrgent)) return { bucket: "urgent", reason: "Sender is on your always-urgent list." };
-        const trusted = senderMatches(sender, settings.trustedSources);
-        const noRush = /\b(no rush|not urgent|when you have time|for your information|fyi only)\b/i.test(content);
-        const deadline = /\b(?:due|deadline(?: is)?|submit(?: by)?|reply by|respond by)\s+(?:today|tonight)\b/i.test(content);
-        const immediate = deadline || /\b(urgent|asap|immediately|emergency|outage|blocked|time-sensitive|right away|call me now|reply now|respond now|need you now|within (?:the next |an? )?(?:hour|30 minutes))\b/i.test(content);
-        if (trusted && immediate && !noRush) return { bucket: "urgent", reason: deadline ? "Trusted school/work contact + deadline today or tonight." : "Trusted school/work contact + request for immediate action." };
-        if (trusted) return { bucket: "low", reason: noRush ? "Trusted contact says this can wait." : "Trusted contact, but no immediate action was found." };
-        return { bucket: "low", reason: immediate ? "Urgent wording alone is insufficient without a trusted sender." : "No trusted urgent-work signal found." };
+        const decision = (bucket, rule, reason) => ({ bucket, rule, reason });
+        const identity = parseSender(message.sender);
+        const content = [message.subject, message.body].filter(Boolean).join(" ");
+        const subscriptionRule = matchingRule(identity, settings.subscriptionSources);
+        if (subscriptionRule) return decision("low", "Subscription sender", `Matched your subscription rule “${subscriptionRule}”. This takes precedence over urgency.`);
+        if (message.subscription) return decision("low", "Subscription flag", "You marked this message as a newsletter or subscription.");
+        const subscription = content.match(/\b(unsubscribe|newsletter|subscription|weekly digest|special offer|promo code|flash sale)\b/i);
+        if (subscription) return decision("low", "Subscription wording", `Matched “${subscription[0]}”. Subscription signals take precedence over urgency.`);
+        if (!identity) return decision("low", "Unclear sender", "The sender is not one recognizable email address or phone number. No automatic trust was assigned.");
+        const alwaysRule = matchingRule(identity, settings.alwaysUrgent);
+        if (alwaysRule) return decision("urgent", "Always-urgent contact", `Matched your always-urgent rule “${alwaysRule}”. This is your override, not verification of the sender.`);
+        const trustedRule = matchingRule(identity, settings.trustedSources);
+        if (!trustedRule) return decision("low", "Untrusted sender", `“${identity.value}” does not match your trusted contacts. Urgent wording cannot grant trust.`);
+        const body = currentSegments(message.body);
+        const inactive = body.map(inactiveContext).find(Boolean);
+        // A current body update can supersede an old urgent subject. A separate
+        // actionable sentence in that body is still eligible for an urgent alert.
+        const candidates = [...body, ...(inactive ? [] : currentSegments(message.subject))];
+        const signal = candidates.map(urgentSignal).find(Boolean);
+        if (signal) return decision("urgent", signal.rule, `Matched trusted rule “${trustedRule}” and “${signal.phrase}”.`);
+        const context = inactive || currentSegments(message.subject).map(inactiveContext).find(Boolean);
+        if (context) return decision("low", "Context says it can wait", `Trusted contact, but the message ${context}; no separate current urgent request was found.`);
+        return decision("low", "Routine message", `Matched trusted rule “${trustedRule}”, but no current immediate request or recognized near-term deadline was found.`);
       }
-      window.AlertTriage = Object.freeze({ classify, defaultSettings });
+      window.AlertTriage = Object.freeze({ classify, defaultSettings, parseSender });
     }());
   </script>
   <script>
     (function () {
       "use strict";
       const $ = id => document.getElementById(id);
-      const { classify, defaultSettings } = window.AlertTriage;
+      const { classify, defaultSettings, parseSender } = window.AlertTriage;
       let messages = [];
       let nextId = 1;
       let audioContext;
@@ -198,11 +243,7 @@
         render();
       }
       function contactKey(value) {
-        const text = String(value).trim().toLowerCase();
-        const email = text.match(/^[^\s<>@]+@[^\s<>@]+\.[a-z]{2,}$/i);
-        if (email) return text;
-        if (/^\+?[\d\s().-]+$/.test(text) && text.replace(/\D/g, "").length >= 7) return text.replace(/\D/g, "");
-        return "";
+        return parseSender(value)?.value || "";
       }
       function rememberSender(sender, key) {
         const contact = contactKey(sender);
@@ -319,7 +360,9 @@
         top.append(el("span", "channel", item.channel));
         card.append(top, el("h4", "", item.subject || (item.channel === "Text" ? "New text message" : "(No subject)")), el("div", "sender", item.sender));
         if (item.body) card.append(el("p", "preview", item.body));
-        card.append(el("div", "why", item.reason));
+        const why = el("div", "why");
+        why.append(el("strong", "", "Why this category? " + item.rule), el("div", "", item.reason));
+        card.append(why);
         const actions = el("div", "card-actions");
         const play = el("button", "text-button", item.bucket === "urgent" ? "▶ Play sound + voice" : "▶ Play sound");
         play.type = "button";
@@ -328,6 +371,7 @@
         move.type = "button";
         move.addEventListener("click", () => {
           item.bucket = item.bucket === "urgent" ? "low" : "urgent";
+          item.rule = "Manual move";
           item.reason = "Manually moved for this demo message. Edit the rules to change future sorting.";
           render();
           announce(item.bucket);
@@ -389,6 +433,17 @@
         ]) addMessage({ ...example, channel: "Email" }, false);
         setStatus("Five tricky messages sorted silently. Default rules keep all five low priority; saved sender rules may change this.");
       });
+      $("loadScamExamples").addEventListener("click", () => {
+        messages = [];
+        for (const example of [
+          { sender: "security@unknown.example", subject: "URGENT verify your account", body: "Send your password immediately or your account will close." },
+          { sender: "dispatch@team.example.evil.test", subject: "Emergency payment", body: "Transfer money now. This is urgent." },
+          { sender: '"professor@campus.example" <fraud@unknown.example>', subject: "Assignment due today", body: "Pay the fee immediately." },
+          { sender: "15550101234@unknown.example", subject: "Call me now", body: "URGENT: your delivery is blocked." },
+          { sender: "offers@shop.example", subject: "URGENT flash sale", body: "Special offer ends tonight. Unsubscribe here." }
+        ]) addMessage({ ...example, channel: "Email" }, false);
+        setStatus("Scam-like examples loaded silently. Default rules keep all five low priority. This demonstrates priority rules, not scam detection.");
+      });
       $("clearMessages").addEventListener("click", () => { stopAlerts(); messages = []; render(); setStatus("Demo inbox cleared."); });
       $("stopAlerts").addEventListener("click", stopAlerts);
       for (const id of ["soundEnabled", "voiceEnabled"]) $(id).addEventListener("change", stopAlerts);
@@ -432,7 +487,7 @@
                 throw new Error("Provide an email or text with a sender and valid message fields.");
               }
               addMessage({ channel: input.channel, sender: input.sender.trim(), subject: input.channel === "Email" ? (input.subject || "") : "", body: input.body || "", subscription: !!input.subscription });
-              return { bucket: messages[0].bucket, reason: messages[0].reason };
+              return { bucket: messages[0].bucket, rule: messages[0].rule, reason: messages[0].reason };
             }
           }, { signal: lifecycle.signal })).catch(() => {});
         } catch (_) { /* Tool support is optional in browsers. */ }
