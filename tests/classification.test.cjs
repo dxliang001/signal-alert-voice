@@ -31,3 +31,19 @@ test('every decision names its rule and explains it', () => {
     assert.ok(actual.reason, `missing explanation: ${sample.id}`);
   }
 });
+
+test('the benchmark embedded in the page matches the test file', () => {
+  const embedded = html.match(/<script type="application\/json" id="benchmarkCases">([\s\S]*?)<\/script>/);
+  assert.ok(embedded, 'embedded benchmark');
+  assert.deepEqual(JSON.parse(embedded[1]), cases);
+});
+
+test('every decision has a five-check trace ending at the deciding check', () => {
+  for (const sample of cases) {
+    const actual = classify(sample, { ...defaultSettings, ...sample.settings });
+    assert.equal(actual.steps.length, 5, sample.id);
+    const decisive = actual.steps.filter(s => s.status === 'stop' || s.status === 'override');
+    if (actual.bucket === 'low') assert.equal(decisive.length, 1, sample.id);
+    else assert.ok(actual.steps.every(s => s.status !== 'stop'), sample.id);
+  }
+});

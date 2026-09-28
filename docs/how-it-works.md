@@ -10,13 +10,13 @@ The first rule that applies decides the result.
 2. **Subscription flag** (checked on the form) → Low priority
 3. **Subscription wording**: `unsubscribe`, `newsletter`, `subscription`, `weekly digest`, `special offer`, `promo code`, `flash sale` → Low priority
 4. **Unclear sender**: the sender is not one recognizable email address or phone number → Low priority
-5. **Always-urgent contact** (user override) → Urgent, without requiring a separate trusted-contact match or urgent phrase
+5. **Always-urgent contact** (user override) → Urgent
 6. **Untrusted sender** → Low priority. Urgent wording cannot grant trust.
 7. **Trusted sender + current urgent signal** → Urgent
 8. **Trusted sender, but context says it can wait** → Low priority
 9. **Trusted sender, routine message** → Low priority
 
-Subscription checks look at the whole subject and body, including quoted lines and footers. This can suppress a real urgent request when “unsubscribe” appears only in a footer.
+Subscription checks look at the whole message, including quoted lines, so they stay conservative.
 
 ## Sender matching
 
@@ -35,7 +35,7 @@ A message is urgent if any current clause contains:
 - **Action within an hour**: a time window of 60 minutes or less (`in 20 minutes`, `within the next hour`) together with an action verb such as cover, join, confirm, submit, reply, respond, call, attend, send, finish, complete, approve, or review
 - **Immediate request**: `urgent`, `ASAP`, `immediately`, `emergency`, `outage`, `blocked`, `time-sensitive`, `right away`, `call me now`, `reply now`, `respond now`, `need you now`
 
-A deadline tomorrow is not treated as urgent by itself. Immediate-request keywords such as “outage” do not require a separate action verb; a match is not proof that action is actually needed.
+A deadline tomorrow is not treated as urgent by itself.
 
 ## Context that suppresses urgency
 
@@ -66,4 +66,3 @@ Lines starting with `>` (quoted history) are ignored for urgency.
 ## Known gaps
 
 Phrase matching is not semantic understanding. Complex negation, quoted history without `>`, conflicting clauses, absolute dates ("due Oct 3"), and unfamiliar phrasing can still be misclassified.
-

@@ -55,8 +55,10 @@ test('school deadline, work request, routine and misleading urgency', () => {
   assert.equal(a.classify({ sender:'dispatch@team.example', body:'urgent' }, { subscriptionSources:'dispatch@team.example', alwaysUrgent:'dispatch@team.example' }).bucket, 'low');
 });
 
-test('five examples remain two urgent and three low; loading is silent', () => {
-  const a = app(); a.click('loadExamples');
+test('everyday examples load on open, stay two urgent and three low, and loading is silent', () => {
+  const a = app();
+  assert.equal(a.nodes.urgentCount.textContent, '2'); assert.equal(a.nodes.lowCount.textContent, '3');
+  a.click('loadExamples');
   assert.equal(a.nodes.urgentCount.textContent, '2'); assert.equal(a.nodes.lowCount.textContent, '3');
   assert.equal(a.speech.length, 0); assert.equal(a.tones.length, 0);
 });
@@ -136,7 +138,7 @@ test('scam-like examples stay low and each playback is sound only', () => {
 
 test('all benchmark messages reach the correct column and audio path through the form', () => {
   for (const sample of require('./classification-cases.json')) {
-    const a = app(sample.settings);
+    const a = app(sample.settings); a.click('clearMessages');
     a.nodes.channel.value = 'Email'; a.nodes.sender.value = sample.sender;
     a.nodes.subject.value = sample.subject || ''; a.nodes.body.value = sample.body || '';
     a.nodes.subscription.checked = !!sample.subscription;
@@ -147,4 +149,59 @@ test('all benchmark messages reach the correct column and audio path through the
     assert.deepEqual(a.tones, urgent ? [690,900] : [440], sample.id);
     a.tick(); assert.equal(a.speech.length, urgent ? 1 : 0, sample.id);
   }
+});
+
+test('every card shows five checks, and urgent cards highlight their deciding phrase', () => {
+  const a = app();
+  const cards = [...a.nodes.urgentCards.children, ...a.nodes.lowCards.children];
+  assert.equal(cards.length, 5);
+  for (const card of cards) {
+    const trace = card.children.find(n => n.className === 'why').children.find(n => n.className === 'trace');
+    assert.equal(trace.children.length, 5);
+  }
+  const marks = a.nodes.urgentCards.children.flatMap(card => card.children.flatMap(n => n.children || [])).filter(n => n.tag === 'mark');
+  assert.ok(marks.some(n => n.className === 'hl-urgent'), 'urgent phrase highlighted');
+});
+
+test('in-page benchmark compares current and previous rules', () => {
+  const a = app();
+  a.nodes.benchmarkCases.textContent = fs.readFileSync(require('node:path').join(__dirname, 'classification-cases.json'), 'utf8');
+  a.nodes.benchChangedOnly.checked = true;
+  a.click('runBenchmark');
+  assert.equal(a.nodes.benchCurrent.textContent, '46 / 46');
+  assert.equal(a.nodes.benchPrevious.textContent, '34 / 46');
+  assert.match(a.nodes.benchPreviousDetail.textContent, /3 missed urgent · 9 unnecessary/);
+  assert.equal(a.nodes.benchList.children.length, 13);
+});
+
+test('generated messages: known phrasing always matches the generator spec', () => {
+  const a = app();
+  const { generate } = a.context.window.MessageGenerator;
+  assert.deepEqual(generate({ count: 20, seed: 7 }), generate({ count: 20, seed: 7 }), 'same seed, same messages');
+  const groups = new Set();
+  for (let seed = 1; seed <= 10; seed++) {
+    for (const message of generate({ count: 300, seed })) {
+      groups.add(message.group);
+      assert.equal(a.classify(message).bucket, message.expected, `${message.group}: ${message.sender} | ${message.subject} | ${message.body}`);
+    }
+  }
+  assert.ok(groups.size >= 15, 'covers many scenario and sender groups');
+});
+
+test('generated messages: natural phrasing exposes known gaps without changing known results', () => {
+  const a = app();
+  const natural = a.context.window.MessageGenerator.generate({ count: 500, seed: 3, natural: true });
+  const failures = natural.filter(m => a.classify(m).bucket !== m.expected);
+  assert.ok(failures.length > 0, 'natural phrasing should reveal at least one gap');
+  assert.ok(failures.every(m => m.natural), 'every failure comes from natural phrasing');
+});
+
+test('generator panel reports a score and a sent message plays its alert', () => {
+  const a = app();
+  a.nodes.genCount.value = '200'; a.nodes.genSeed.value = '11'; a.nodes.genNatural.checked = false;
+  a.click('runGenerator');
+  assert.equal(a.nodes.genScore.textContent, '200 / 200');
+  a.click('addGenerated');
+  assert.equal(Number(a.nodes.urgentCount.textContent) + Number(a.nodes.lowCount.textContent), 6);
+  assert.ok(a.tones.length > 0, 'incoming generated message plays an alert');
 });

@@ -1,7 +1,7 @@
 # Handshake project entry
 
 **Project name**
-Signal — Voice Alerts for Urgent Messages
+Signal — Voice Alerts for Messages That Actually Matter
 
 **Links**
 - Live demo: https://signal-alert-voice.dxliang.chatgpt.site
@@ -9,11 +9,12 @@ Signal — Voice Alerts for Urgent Messages
 
 **Description (full version)**
 
-Built a browser prototype for busy students and professionals that sorts sample emails and texts into Urgent / Job and Low Priority / Subscription. Urgent alerts play a distinct tone and spoken phrase; low-priority alerts use a soft sound only. Each card explains its classification and supports user corrections.
+Built a browser prototype for busy students and professionals that sorts sample emails and texts into Urgent / Job and Low Priority / Subscription. Urgent alerts play a distinct tone and spoken phrase; low-priority alerts use a soft sound only. Each card shows a five-check decision trace, highlights deciding phrases, and supports user corrections.
 
 - Developed ordered rules for subscriptions, exact sender matching, user overrides, current context and near-term requests.
 - Created a 46-case synthetic regression set covering deadlines, resolved events, quoted replies, lookalike domains and misleading display names.
 - Used error analysis to improve from the project's recorded baseline of 3 missed urgent cases and 9 unnecessary urgent classifications to 46/46 matching expectations on that set. This is a development-set result, not measured real-inbox accuracy.
+- Added an in-page benchmark and a seeded message generator. All 3,000 known-phrasing cases matched expectations; natural-phrasing stress tests expose missed deadlines, unfamiliar time expressions and negated urgency. These synthetic results are not real-inbox accuracy.
 - Added saved sender corrections and a sequential audio queue to avoid interrupting an urgent announcement with the next alert.
 
 Built with AI coding assistance. This is a rule-based prototype using manually entered or synthetic messages; it does not receive live email or SMS or authenticate senders.
@@ -24,4 +25,3 @@ Built an explainable browser prototype that sorts sample messages and plays dist
 
 **Skills to tag**
 JavaScript, HTML/CSS, Rule-Based Classification, Error Analysis, Software Testing, Web Audio API, Web Speech API, Product Design
-

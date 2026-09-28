@@ -1,9 +1,10 @@
 # Signal — Voice Alerts for Messages That Actually Matter
 
-Signal is a browser prototype that decides which emails and texts are worth interrupting you for. Urgent school or work messages play a distinct tone and say *"Urgent message. Please check."* Low-priority alerts play a soft sound only when sound is enabled. Messages are entered manually or loaded from synthetic examples; no live inbox or SMS is connected.
+Signal is a browser prototype that decides which emails and texts are worth interrupting you for. Urgent school or work messages play a distinct tone and say *"Urgent message. Please check."* Everything else gets a soft sound or nothing.
 
 **Live demo:** https://signal-alert-voice.dxliang.chatgpt.site
 
+![Each card shows the five checks, where the message stopped, and the phrases that decided it](docs/screenshot.png)
 
 ## The problem
 
@@ -13,15 +14,24 @@ The hard part is not playing a sound. It is deciding **what counts as useful and
 
 ## How a message is analyzed
 
-The rules run in order. Every card shows **“Why this category?”** with the deciding rule and matching evidence.
+I broke "is this worth interrupting me?" into five questions, checked in order. The first rule that applies decides the result. In the demo, every card shows all five checks (passed, stopped, or skipped) and highlights the phrases that decided it: urgency signals, action verbs, "can wait" wording, subscription wording, and urgent wording that was ignored because the sender was not trusted.
 
-1. Subscription rules, flags and wording select Low Priority, even for an always-urgent contact.
-2. An unrecognizable sender selects Low Priority.
-3. A matching “always urgent” rule selects Urgent; it does not require a separate trusted-contact match or urgent phrase.
-4. Other senders must match a trusted address, phone or exact domain. Urgent wording cannot grant trust.
-5. Trusted senders qualify through a current same-day deadline, an action within an hour, or a recognized immediate-request phrase. Otherwise the message is Low Priority.
+```mermaid
+flowchart TD
+    A[New message] --> B{1. Is it noise?<br/>unsubscribe, newsletter,<br/>promo code, subscription rule}
+    B -- yes --> L1[Low priority]
+    B -- no --> C{2. Is the sender one<br/>recognizable email or phone?}
+    C -- no --> L2[Low priority]
+    C -- yes --> D{3. Is the sender trusted?<br/>exact address, phone, or domain}
+    D -- no --> L3[Low priority]
+    D -- yes --> E{4. Is the request still current?<br/>not resolved, canceled,<br/>postponed, or 'no rush'}
+    E -- no --> L4[Low priority]
+    E -- yes --> F{5. Does it need action soon?<br/>due today or tonight,<br/>action within an hour,<br/>or an immediate request}
+    F -- no --> L5[Low priority]
+    F -- yes --> U[Urgent: tone + voice]
+```
 
-Recognized “no rush” and resolved/canceled/postponed context suppress urgency within a clause. A body update also suppresses an old urgent subject, while a separate current body request can still qualify. These are narrow phrase rules, not semantic understanding or sender authentication.
+In short: **urgent = trusted sender × still current × action needed soon, and not a subscription.** (A user-defined "always urgent" contact acts as an override at step 3 and skips steps 4–5; a subscription rule still overrides it.)
 
 Some design decisions behind the rules:
 
@@ -57,7 +67,36 @@ What the previous rules got wrong, grouped by cause:
 
 The misses came from depending on keywords. The false alarms came from ignoring context and from loose sender matching.
 
+The demo includes a **"Check the rules against the test set"** panel that runs all 46 cases in the browser against both the current and previous rules, and shows the five-check trace for each case.
+
 **Caveat:** I wrote this set and tuned the rules against it, so it is a regression suite, not an independent accuracy estimate for real inboxes.
+
+### Stress test with generated messages
+
+A seeded generator builds messages from labeled parts and works out the expected category from those parts, without calling the classifier:
+
+- **Sender:** trusted (exact email, domain rule, display name + mailbox, mixed case, phone formats) or untrusted (unknown, lookalike domain, subdomain, trusted domain used as a prefix, spoofed display name, unknown phone, phone digits inside an email)
+- **Request:** same-day deadline, action within an hour, immediate request, can-wait + current request, routine, not soon enough, says it can wait, stale urgent subject, urgency only in quoted history
+- **Extras:** optional subscription noise and quoted history
+
+Expected category: urgent only if the sender is trusted, there is no subscription noise, and the request is time-sensitive.
+
+| Mode | What it tests | Result (10 seeds × 300 messages) |
+|---|---|---|
+| Known phrasing | Whether the rules combine correctly: precedence, sender parsing, sentence-level context | 3,000 / 3,000 match |
+| + Natural phrasing | Everyday wording the rules were not written for (labels are human judgment) | Failures appear, all from natural phrasing |
+
+Known phrasing uses the same vocabulary the rules were written for, so a perfect score shows the logic is consistent, not that it understands language. The natural-phrasing failures are the more useful output. They show exactly which wording the rules miss:
+
+| Missed or misread | Example |
+|---|---|
+| Deadline without "due" / "submit by" | "Please submit the timesheet by tonight." |
+| Time in other units | "in half an hour", "in 15 mins", "in 1 hour" |
+| Pressure without a keyword | "This can't wait. Please call me back." |
+| Updates in other words (stale subject wins) | "The interview has been called off." |
+| Negated urgency phrase | "Please don't worry about replying right away." |
+
+The demo's **"Stress-test with generated messages"** panel runs this in the browser. Set the count and seed (the same seed always gives the same messages), turn natural phrasing on or off, and open any failure to see its five-check trace. **"Send one random message to the inbox"** delivers a generated message as if it just arrived, plays its alert, and shows whether the classifier matched the generator's expected category.
 
 ## Known limitations
 
@@ -66,18 +105,22 @@ The misses came from depending on keywords. The false alarms came from ignoring 
 - **Priority is not a safety verdict.** The demo cannot authenticate senders; a spoofed exact trusted address still matches.
 - No live inbox or SMS is connected. Messages are entered manually or loaded from examples.
 
-## Future directions
+## Next steps
 
 1. **Value × urgency instead of a single urgent flag.** High value + time-sensitive → voice alert; high value + not time-sensitive → normal notification or daily digest; low value → quiet.
-2. **Independent evaluation.** After privacy safeguards are in place, evaluate consented examples with a separate held-out set and report aggregate errors without publishing private message content.
-3. **Real inbox integration.** Explore consent-based email access only after account and privacy safeguards. No live inbox is connected to this browser prototype.
+2. **Close the gaps the generator found**, adding each natural phrasing to the known set once the rules handle it, so it stays covered.
+3. **Evaluate on real mail.** Label 100–200 of my own (anonymized) messages by hand, run the classifier, and publish an error analysis of what it misses and why.
+4. **Gmail mobile pilot.** A consent-based, read-only Gmail pilot for Android and iPhone that tests the alert on an actual locked phone. The design, including OAuth, deduplication, and privacy gates, is in [docs/gmail-mobile-pilot-design.md](docs/gmail-mobile-pilot-design.md). The mobile pilot is separate work in progress and is not included in this browser release.
 
 ## Features
 
+- Opens with sorted examples: everyday, tricky edge cases, and scam-like messages
+- Five-check decision trace and phrase highlighting on every card
+- In-page benchmark comparing current and previous rules
+- Seeded message generator with expected labels, for stress tests and simulated incoming mail
 - Two columns: **Urgent / Job** and **Low Priority / Subscription**
 - Trusted contacts by exact email, domain, or phone number, saved in the browser
 - Per-card one-time moves and saved sender rules; changing a rule re-sorts the inbox silently
-- Example sets: standard, "tricky" edge cases, and scam-like messages
 - Sequential audio queue so one urgent announcement is not cut off by the next message
 
 ## Run it
@@ -90,11 +133,8 @@ Tests (Node.js 22+):
 node --test --experimental-test-isolation=none tests/classification.test.cjs tests/prototype.test.cjs
 ```
 
-The tests cover classification, sender-rule persistence, and alert sequencing with mocked browser audio APIs. They do not verify audible output from speakers.
+The tests cover classification, the five-check trace, the in-page benchmark, the message generator (3,000 known-phrasing messages must all match), sender-rule persistence, and alert sequencing with mocked browser audio APIs. They do not verify audible output from speakers.
 
 ## Tech
 
-HTML, CSS, vanilla JavaScript, Web Audio API, Web Speech API, `node:test`. Built with AI coding assistance, with project work focused on classification rules, regression cases, error analysis and inspectable decisions. This is a rule-based prototype, not a trained machine-learning classifier.
-
-Keep .openai/hosting.json and its project ID intact for future Site publication. Updating GitHub does not automatically publish the Site.
-
+HTML, CSS, vanilla JavaScript, Web Audio API, Web Speech API, `node:test`. Built with the help of AI coding assistants; I defined the classification rules and test cases and reviewed every change.

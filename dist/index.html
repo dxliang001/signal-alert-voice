@@ -4,16 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <meta name="description" content="Sort a sample email or text into urgent work and low priority. Hear a sound for routine messages and a sound plus spoken alert for urgent work.">
+  <meta name="description" content="See how each email or text is analyzed in five checks: noise, sender, trust, whether it is still current, and whether it needs action soon. Urgent messages get a sound and a spoken alert.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23122c3d'/%3E%3Cpath d='M16 37h8l6-16 8 24 5-11h5' fill='none' stroke='%239de4dc' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <title>Signal — alert voice prototype</title>
   <style>
     :root { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #142638; background: #f5f7f7; }
     * { box-sizing: border-box; }
-    body { margin: 0; }
+    body { margin: 0; background: #f5f7f7; }
+    [hidden] { display: none !important; }
     button, input, textarea, select { font: inherit; }
     button { cursor: pointer; }
-    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid #276e9a; outline-offset: 2px; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid #276e9a; outline-offset: 2px; }
     .top { background: #122c3d; color: white; padding: 16px max(24px, calc((100vw - 1180px) / 2)); }
     .top-inner { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
     .brand { display: flex; align-items: center; gap: 12px; font-size: 21px; font-weight: 750; letter-spacing: -.04em; }
@@ -21,16 +22,20 @@
     .top-meta { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #b4cfda; }
     main { max-width: 1228px; margin: 0 auto; padding: 24px 24px 64px; }
     .intro { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; }
-    h1 { font-size: clamp(27px, 3vw, 36px); line-height: 1.12; letter-spacing: -.045em; margin: 4px 0 8px; max-width: 660px; }
-    .lede { color: #526775; font-size: 16px; line-height: 1.5; margin: 0; max-width: 650px; }
+    h1 { font-size: clamp(27px, 3vw, 36px); line-height: 1.12; letter-spacing: -.045em; margin: 4px 0 8px; max-width: 700px; }
+    .lede { color: #526775; font-size: 16px; line-height: 1.5; margin: 0; max-width: 720px; }
     .eyebrow { color: #bd563f; text-transform: uppercase; letter-spacing: .13em; font-weight: 800; font-size: 11px; }
     .badge { color: #31566a; background: #e6f0f1; padding: 9px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
-    .switch { display: inline-flex; align-items: center; gap: 9px; background: white; border: 1px solid #dce5e7; border-radius: 12px; padding: 10px 12px; font-size: 14px; font-weight: 650; }
-    .switch input { accent-color: #136d70; width: 17px; height: 17px; margin: 0; }
+    .steps-strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 20px; padding: 0; list-style: none; counter-reset: s; }
+    .steps-strip li { counter-increment: s; background: white; border: 1px solid #dce5e7; border-radius: 999px; padding: 6px 11px; font-size: 13px; font-weight: 650; color: #31566a; }
+    .steps-strip li::before { content: counter(s) ". "; color: #bd563f; }
+    .controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .switch { display: inline-flex; align-items: center; gap: 7px; background: white; border: 1px solid #dce5e7; border-radius: 10px; padding: 7px 10px; font-size: 13px; font-weight: 650; }
+    .switch input { accent-color: #136d70; width: 16px; height: 16px; margin: 0; }
+    .small { padding: 7px 10px !important; font-size: 13px !important; }
     .panel { border: 1px solid #dce5e7; border-radius: 20px; background: white; box-shadow: 0 10px 32px rgba(18, 44, 61, .045); }
-    .compose { padding: 24px; margin-bottom: 24px; }
-    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 18px; }
+    .compose, .bench, .setup { padding: 24px; margin-top: 24px; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
     h2 { letter-spacing: -.03em; margin: 0; font-size: 21px; }
     .hint { color: #718491; font-size: 13px; }
     .fields { display: grid; grid-template-columns: 150px 1fr 1fr; gap: 13px; }
@@ -41,13 +46,20 @@
     .compose-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 15px; }
     .check { display: flex; align-items: center; gap: 8px; color: #526775; font-size: 14px; }
     .check input { accent-color: #136d70; }
-    .actions { display: flex; gap: 9px; flex-wrap: wrap; }
+    .actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: end; }
     .primary { border: 1px solid #143b49; background: #143b49; color: white; }
     .secondary { border: 1px solid #cfdbde; background: white; color: #264454; }
     .primary, .secondary { border-radius: 10px; padding: 10px 15px; font-size: 14px; font-weight: 700; }
     .primary:hover { background: #245b68; }
     .secondary:hover { background: #f0f5f5; }
-    .inbox-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 6px 0 14px; }
+    .inbox-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 6px 0 10px; }
+    .segmented { display: inline-flex; flex-wrap: wrap; gap: 4px; background: #e6eeef; border-radius: 12px; padding: 4px; }
+    .segmented button { border: 0; background: transparent; color: #31566a; border-radius: 9px; padding: 7px 12px; font-size: 14px; font-weight: 700; }
+    .segmented button[aria-pressed="true"] { background: white; color: #122c3d; box-shadow: 0 1px 3px rgba(18, 44, 61, .15); }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: #526775; margin: 0 0 14px; }
+    .status { min-height: 20px; color: #47616e; font-size: 14px; margin: 0 0 8px; }
+    .audio-status { color: #6b808c; font-size: 12px; margin: 0 0 12px; }
     .columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
     .lane { padding: 18px; min-height: 280px; }
     .lane.urgent { border-top: 5px solid #db694c; }
@@ -59,58 +71,126 @@
     .cards { display: grid; gap: 10px; }
     .card { background: #fcfdfd; border: 1px solid #e0e8ea; border-radius: 13px; padding: 15px; }
     .card-top { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
-    .channel { color: #677f8c; font-size: 10px; letter-spacing: .09em; text-transform: uppercase; font-weight: 800; }
-    .card h4 { margin: 6px 0 4px; font-size: 15px; line-height: 1.3; }
+    .channel { color: #677f8c; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; font-weight: 800; }
+    .card h4 { margin: 6px 0 4px; font-size: 15px; line-height: 1.35; }
     .sender { color: #546a78; font-size: 12px; overflow-wrap: anywhere; }
-    .preview { color: #405b68; font-size: 14px; line-height: 1.48; margin: 12px 0; overflow-wrap: anywhere; }
-    .why { background: #eff5f5; color: #42616a; font-size: 12px; line-height: 1.4; border-radius: 8px; padding: 9px 10px; }
+    .preview { color: #405b68; font-size: 14px; line-height: 1.55; margin: 12px 0; overflow-wrap: anywhere; white-space: pre-line; }
+    mark { border-radius: 4px; padding: 0 3px; font-weight: 650; }
+    .hl-urgent { background: #fde2d8; color: #8a2e17; }
+    .hl-action { background: #fff0c2; color: #6b4d00; }
+    .hl-suppress { background: #d7efe8; color: #1d5e4f; }
+    .hl-noise { background: #e8e4f7; color: #4a3f86; }
+    .hl-ignored { background: #eceff1; color: #6b7c86; text-decoration: line-through; }
+    .why { background: #f1f6f6; color: #42616a; font-size: 12.5px; line-height: 1.4; border-radius: 9px; padding: 10px 11px; }
+    .why-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 7px; color: #264454; }
+    .rule-name { font-weight: 750; }
+    .trace { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+    .trace li { display: grid; grid-template-columns: 20px 1fr; gap: 6px; align-items: start; }
+    .trace .icon { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 800; color: white; }
+    .trace .pass .icon { background: #2b8a6a; }
+    .trace .stop .icon { background: #c4553b; }
+    .trace .override .icon { background: #a27100; }
+    .trace .skip { opacity: .5; }
+    .trace .skip .icon { background: #a9b8bf; }
+    .trace .title { font-weight: 700; color: #264454; }
+    .trace .detail { color: #526775; overflow-wrap: anywhere; }
+    .verdict { margin-top: 8px; padding-top: 7px; border-top: 1px dashed #cfdcdf; font-weight: 750; }
+    .verdict.urgent { color: #a6412a; }
+    .verdict.low { color: #2a7a6f; }
+    .manual-note { margin: 0 0 7px; color: #8a5a00; font-weight: 650; }
     .card-actions { display: flex; gap: 11px; flex-wrap: wrap; margin-top: 12px; }
     .text-button { border: 0; padding: 2px 0; background: none; color: #185f76; font-size: 14px; font-weight: 750; }
     .text-button:hover { text-decoration: underline; }
     .empty { color: #718491; border: 1px dashed #d5e1e3; padding: 22px; text-align: center; border-radius: 10px; font-size: 14px; }
-    details { margin-top: 23px; }
+    details.rules { margin-top: 23px; }
     details summary { cursor: pointer; font-size: 14px; font-weight: 750; color: #264454; }
     .settings { margin-top: 14px; padding: 21px; }
     .setting-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-    .settings p, .footnote { color: #58707d; font-size: 14px; line-height: 1.55; }
+    .settings p, .footnote, .setup p, .bench p { color: #58707d; font-size: 14px; line-height: 1.55; }
     .settings textarea { min-height: 92px; }
-    .status { min-height: 20px; color: #47616e; font-size: 14px; margin: 10px 0 0; }
     .footnote { margin-top: 22px; }
-    .setup { padding: 20px; margin-bottom: 18px; }
-    .setup p { color: #526775; line-height: 1.5; }
-    .sender-rule { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-    .sender-rule select { min-width: 0; max-width: 100%; flex: 1; border: 1px solid #cedbdf; border-radius: 8px; padding: 8px; font-size: 14px; background: white; color: #183141; }
-    .audio-status { color: #47616e; font-size: 14px; margin: -7px 0 20px; }
-    .channel { font-size: 12px; }
-    @media (max-width: 750px) { .intro { align-items: start; flex-direction: column; } .fields { grid-template-columns: 1fr; } .columns, .setting-grid { grid-template-columns: 1fr; } .top-meta { display: none; } main { padding: 27px 15px 48px; } .compose { padding: 18px; } }
+    .setup p { margin: 0 0 12px; }
+    .sender-rule { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .sender-rule select { min-width: 0; max-width: 100%; flex: 1; border: 1px solid #cedbdf; border-radius: 8px; padding: 7px 8px; font-size: 13px; background: white; color: #183141; }
+    .sender-rule .secondary { padding: 7px 12px; font-size: 13px; }
+    .bench p { margin: 0 0 14px; max-width: 760px; }
+    .bench-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0 12px; }
+    .score { border: 1px solid #e0e8ea; border-radius: 14px; padding: 14px 16px; background: #fbfdfd; display: grid; gap: 2px; }
+    .score span { font-size: 13px; color: #58707d; font-weight: 700; }
+    .score strong { font-size: 28px; letter-spacing: -.03em; }
+    .score small { color: #58707d; font-size: 13px; }
+    .score.good strong { color: #2a7a6f; }
+    .score.bad strong { color: #a6412a; }
+    .bench-list { display: grid; gap: 6px; margin-top: 12px; }
+    .bench-row { border: 1px solid #e0e8ea; border-radius: 11px; background: #fcfdfd; }
+    .bench-row summary { display: grid; grid-template-columns: 96px 128px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 12px; font-weight: 600; font-size: 13px; list-style: none; }
+    .bench-row summary::-webkit-details-marker { display: none; }
+    .bench-row .body { padding: 0 12px 12px; }
+    .bench-head { display: grid; grid-template-columns: 96px 128px minmax(0, 1fr); gap: 10px; padding: 0 13px; font-size: 12px; color: #718491; font-weight: 700; }
+    .pill { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 750; white-space: nowrap; }
+    .pill.ok { background: #dcf1ea; color: #1f6a52; }
+    .pill.bad { background: #fbe0d8; color: #9a3a24; }
+    .case-name { color: #264454; overflow-wrap: anywhere; }
+    .case-name small { display: block; color: #6b808c; font-weight: 500; }
+    .case-msg { font-size: 13px; color: #405b68; background: white; border: 1px solid #e6edef; border-radius: 9px; padding: 9px 10px; margin: 0 0 8px; white-space: pre-line; overflow-wrap: anywhere; }
+    .gen-controls { display: grid; grid-template-columns: 140px 140px 1fr; gap: 13px; align-items: end; margin-bottom: 14px; }
+    .gen-groups { display: grid; gap: 4px; font-size: 13px; color: #405b68; margin-top: 4px; }
+    .gen-groups div { display: flex; justify-content: space-between; gap: 10px; }
+    .score .gen-groups strong { font-size: 13px; letter-spacing: 0; color: #9a3a24; }
+    .expect { font-size: 11px; font-weight: 750; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
+    .expect.ok { background: #dcf1ea; color: #1f6a52; }
+    .expect.bad { background: #fbe0d8; color: #9a3a24; }
+    @media (max-width: 750px) { .gen-controls { grid-template-columns: 1fr 1fr; } .gen-controls .check { grid-column: 1 / -1; } }
+    @media (max-width: 750px) {
+      .intro { align-items: start; flex-direction: column; }
+      .fields { grid-template-columns: 1fr; }
+      .columns, .setting-grid, .bench-summary { grid-template-columns: 1fr; }
+      .top-meta { display: none; }
+      main { padding: 24px 16px 48px; }
+      .compose, .bench, .setup { padding: 18px; }
+      .bench-row summary, .bench-head { grid-template-columns: 84px 118px minmax(0, 1fr); gap: 6px; }
+    }
   </style>
 </head>
 <body>
   <header class="top"><div class="top-inner"><div class="brand"><span class="mark" aria-hidden="true">◖</span> Signal</div><div class="top-meta">Make interruptions understandable</div></div></header>
   <main>
-    <section class="intro"><div><div class="eyebrow">Focus on school. Focus on work.</div><h1>Hear what needs your attention.</h1><p class="lede">Trusted, time-sensitive messages get a sound and voice. Routine messages get a soft sound. Try it with sample messages.</p></div><span class="badge">Demo messages only</span></section>
+    <section class="intro"><div><div class="eyebrow">Focus on school. Focus on work.</div><h1>Hear only the messages that need you now.</h1><p class="lede">Every message goes through five checks, in order. Each card shows which checks it passed and where it stopped. Urgent messages get a distinct sound and a spoken alert; low-priority alerts use a soft sound only when sounds are enabled.</p></div><span class="badge">Demo messages only</span></section>
+    <ol class="steps-strip" aria-label="The five checks">
+      <li>Not a subscription</li><li>Sender is recognizable</li><li>Sender is trusted</li><li>Request is still current</li><li>Needs action soon</li>
+    </ol>
 
-    <section class="panel setup" aria-labelledby="setup-heading">
-      <h2 id="setup-heading">1. Choose who matters</h2>
-      <p>Add a professor, classmate, manager, or client you trust. A trusted contact still needs an urgent request to trigger voice.</p>
-      <form id="contactForm" class="actions">
-        <label class="field">Email or phone<input id="contactInput" type="text" required placeholder="professor@school.edu" autocomplete="off"></label>
-        <button class="secondary" type="submit">Add trusted contact</button>
-      </form>
-      <p id="contactStatus" role="status">Sample work and school contacts are included. Edit them in sorting rules below.</p>
+    <div class="inbox-head" id="inbox">
+      <div class="segmented" role="group" aria-label="Example messages">
+        <button id="loadExamples" type="button" aria-pressed="true">Everyday</button>
+        <button id="loadEdgeCases" type="button" aria-pressed="false">Tricky</button>
+        <button id="loadScamExamples" type="button" aria-pressed="false">Scam-like</button>
+      </div>
+      <div class="controls" aria-label="Alert preferences">
+        <label class="switch"><input id="soundEnabled" type="checkbox" checked> Sounds</label>
+        <label class="switch"><input id="voiceEnabled" type="checkbox" checked> Voice</label>
+        <button class="secondary small" id="previewUrgent" type="button">▶ Urgent</button>
+        <button class="secondary small" id="previewLow" type="button">▶ Low</button>
+        <button class="secondary small" id="stopAlerts" type="button">Stop</button>
+        <button class="text-button" id="clearMessages" type="button">Clear</button>
+      </div>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <p class="audio-status" id="audioStatus" role="status" aria-live="polite">Loading examples is silent. Use Play on a card, or the previews above, to hear an alert.</p>
+    <div class="legend" aria-label="Highlight legend">
+      <span><mark class="hl-urgent">urgency signal</mark></span>
+      <span><mark class="hl-action">action</mark></span>
+      <span><mark class="hl-suppress">can wait / resolved</mark></span>
+      <span><mark class="hl-noise">subscription</mark></span>
+      <span><mark class="hl-ignored">ignored</mark> urgent wording that did not count</span>
+    </div>
+    <section class="columns" aria-label="Sorted messages">
+      <div class="panel lane urgent"><div class="lane-head"><h3>🔴 Urgent / Job</h3><span class="count" id="urgentCount">0</span></div><p class="lane-desc">Time-sensitive school or work · distinct sound + voice</p><div class="cards" id="urgentCards"></div></div>
+      <div class="panel lane low"><div class="lane-head"><h3>🟢 Low Priority / Subscription</h3><span class="count" id="lowCount">0</span></div><p class="lane-desc">Newsletters, routine work, and messages that can wait</p><div class="cards" id="lowCards"></div></div>
     </section>
 
-    <div class="controls" aria-label="Alert preferences">
-      <label class="switch"><input id="soundEnabled" type="checkbox" checked> Play sounds</label>
-      <label class="switch"><input id="voiceEnabled" type="checkbox" checked> Speak urgent alerts</label>
-      <button class="secondary" id="previewUrgent" type="button">▶ Urgent voice</button>
-      <button class="secondary" id="previewLow" type="button">▶ Low priority sound</button>
-      <button class="secondary" id="stopAlerts" type="button">Stop alerts</button>
-    </div>
-    <p class="audio-status" id="audioStatus" role="status" aria-live="polite">Audio ready. Preview an alert to check this browser's sound and voice.</p>
-
     <section class="panel compose" aria-labelledby="test-heading">
-      <div class="panel-head"><h2 id="test-heading">2. Test an incoming message</h2><span class="hint">Nothing is sent or stored online</span></div>
+      <div class="panel-head"><h2 id="test-heading">Test your own message</h2><span class="hint">Nothing is sent or stored online</span></div>
       <form id="messageForm">
         <div class="fields">
           <label class="field">Type<select id="channel"><option>Email</option><option>Text</option></select></label>
@@ -118,20 +198,53 @@
           <label class="field" id="subjectField">Subject<input id="subject" type="text" placeholder="Route blocked — call me now"></label>
           <label class="field span-all">Message<textarea id="body" placeholder="A customer is waiting. Please call me now."></textarea></label>
         </div>
-        <div class="compose-foot"><label class="check"><input id="subscription" type="checkbox"> This message is a newsletter or subscription</label><div class="actions"><button class="secondary" id="loadExamples" type="button">Load examples</button><button class="secondary" id="loadEdgeCases" type="button">Try tricky messages</button><button class="secondary" id="loadScamExamples" type="button">Try scam-like messages</button><button class="primary" type="submit">Sort &amp; announce →</button></div></div>
+        <div class="compose-foot"><label class="check"><input id="subscription" type="checkbox"> This message is a newsletter or subscription</label><div class="actions"><button class="primary" type="submit">Sort &amp; announce →</button></div></div>
       </form>
-      <p class="status" id="status" role="status" aria-live="polite"></p>
     </section>
 
-    <div class="inbox-head"><h2>Sorted inbox</h2><button class="text-button" id="clearMessages" type="button">Clear demo</button></div>
-    <section class="columns" aria-label="Sorted messages">
-      <div class="panel lane urgent"><div class="lane-head"><h3>🔴 Urgent / Job</h3><span class="count" id="urgentCount">0</span></div><p class="lane-desc">Time-sensitive school or work · distinct sound + voice</p><div class="cards" id="urgentCards"></div></div>
-      <div class="panel lane low"><div class="lane-head"><h3>🟢 Low Priority / Subscription</h3><span class="count" id="lowCount">0</span></div><p class="lane-desc">Newsletters, routine work, and messages that can wait</p><div class="cards" id="lowCards"></div></div>
+    <section class="panel setup" aria-labelledby="setup-heading">
+      <h2 id="setup-heading">Choose who matters</h2>
+      <p>Add a professor, classmate, manager, or client you trust. A trusted contact still needs a current, time-sensitive request to trigger voice.</p>
+      <form id="contactForm" class="actions">
+        <label class="field">Email or phone<input id="contactInput" type="text" required placeholder="professor@school.edu" autocomplete="off"></label>
+        <button class="secondary" type="submit">Add trusted contact</button>
+      </form>
+      <p id="contactStatus" role="status">Sample work and school contacts are included. Edit them in sorting rules below.</p>
     </section>
 
-    <details><summary>Adjust the sorting rules</summary><div class="panel settings"><p>Put one email or phone number per line. Use <strong>@team.example</strong> only if you trust an entire domain. Trusted contacts need an immediate request or a deadline today or tonight. Always-urgent contacts skip that check. These preferences stay in this browser.</p><div class="setting-grid"><label class="field">Trusted school / work contacts<textarea id="trustedSources"></textarea></label><label class="field">Always-urgent contacts<textarea id="alwaysUrgent"></textarea></label><label class="field">Subscription senders · always low priority<textarea id="subscriptionSources"></textarea></label></div><p>Subscription signals always take precedence. “No rush” and “not urgent” keep ordinary trusted messages low priority. Rules use simple phrases, so review the reason and correct mistakes. Saved rule changes re-sort the visible messages without playing alerts.</p><button class="secondary" id="saveRules" type="button">Save rules</button></div></details>
+    <section class="panel bench" aria-labelledby="bench-heading">
+      <div class="panel-head"><h2 id="bench-heading">Check the rules against the test set</h2><span class="hint">Runs in your browser with the default contacts</span></div>
+      <p>Each synthetic case has an expected category and a one-line reason. The previous rule version (whole-message keyword matching) is kept here only for comparison. I wrote these cases and tuned the rules against them, so this is a regression check, not an accuracy estimate for real inboxes.</p>
+      <button class="primary" id="runBenchmark" type="button">Run all test cases</button>
+      <div class="bench-summary" id="benchSummary" hidden>
+        <div class="score" id="benchCurrentBox"><span>Current rules</span><strong id="benchCurrent"></strong><small id="benchCurrentDetail"></small></div>
+        <div class="score" id="benchPreviousBox"><span>Previous rules</span><strong id="benchPrevious"></strong><small id="benchPreviousDetail"></small></div>
+      </div>
+      <label class="check" id="benchFilterWrap" hidden><input id="benchChangedOnly" type="checkbox" checked> Show only the cases the previous rules got wrong</label>
+      <div class="bench-list" id="benchList"></div>
+    </section>
+
+    <section class="panel bench" aria-labelledby="gen-heading">
+      <div class="panel-head"><h2 id="gen-heading">Stress-test with generated messages</h2><span class="hint">Same seed, same messages</span></div>
+      <p>The generator builds each message from labeled parts: a sender type (trusted, lookalike domain, spoofed display name…), a request type (same-day deadline, action within an hour, stale subject…), and optional subscription noise or quoted history. It decides the expected category from those parts, without calling the classifier, and then checks the classifier against it.</p>
+      <p>With <strong>known phrasing</strong>, this checks that the rules combine correctly: precedence, sender parsing, and sentence-level context. It uses the same vocabulary the rules were written for, so it cannot show how well they handle new wording. Turn on <strong>natural phrasing</strong> to mix in everyday wording the rules were not written for; those labels are human judgment, and the failures show real gaps.</p>
+      <div class="gen-controls">
+        <label class="field">Messages<select id="genCount"><option>100</option><option selected>500</option><option>1000</option></select></label>
+        <label class="field">Seed<input id="genSeed" type="number" min="1" step="1" value="2026"></label>
+        <label class="check"><input id="genNatural" type="checkbox"> Include natural phrasing the rules were not written for</label>
+      </div>
+      <div class="actions"><button class="primary" id="runGenerator" type="button">Generate &amp; check</button><button class="secondary" id="addGenerated" type="button">Send one random message to the inbox</button></div>
+      <div class="bench-summary" id="genSummary" hidden>
+        <div class="score" id="genScoreBox"><span>Classifier matched the expected category</span><strong id="genScore"></strong><small id="genDetail"></small></div>
+        <div class="score"><span>Where it failed</span><div id="genGroups" class="gen-groups"></div></div>
+      </div>
+      <div class="bench-list" id="genList"></div>
+    </section>
+    <script type="application/json" id="benchmarkCases">[{"id":"school-today","sender":"professor@campus.example","body":"Assignment due today. Please submit.","expected":"urgent","why":"Trusted contact and deadline today."},{"id":"school-tonight","sender":"professor@campus.example","body":"Please submit by tonight.","expected":"urgent","why":"Trusted contact and deadline tonight."},{"id":"shift-soon","sender":"manager@team.example","body":"Can you cover my shift in 20 minutes?","expected":"urgent","why":"Trusted request within an hour without an urgency keyword."},{"id":"interview-soon","sender":"recruiter@careers.example","body":"Please confirm your interview within the next hour.","expected":"urgent","why":"Trusted short response deadline."},{"id":"urgent-call","sender":"dispatch@team.example","body":"Call me now. The route is blocked.","expected":"urgent","why":"Trusted immediate request."},{"id":"trusted-text","sender":"+1 (555) 010-1234","body":"Delivery blocked. Please call me now.","expected":"urgent","why":"Exact normalized trusted phone."},{"id":"display-name","sender":"Professor Lee <professor@campus.example>","body":"Reply now please.","expected":"urgent","why":"One explicit mailbox, matching the trusted contact."},{"id":"case-insensitive","sender":" PROFESSOR@CAMPUS.EXAMPLE ","body":"Please respond ASAP.","expected":"urgent","why":"Exact address match ignores case and surrounding whitespace."},{"id":"resolved-then-action","sender":"manager@team.example","body":"Yesterday's outage is resolved. Please call me now about another issue.","expected":"urgent","why":"Resolution does not suppress a separate current request."},{"id":"no-rush-then-action","sender":"manager@team.example","body":"No rush on the report, but call me now about the delivery.","expected":"urgent","why":"No-rush context is scoped to the report."},{"id":"routine-team","sender":"manager@team.example","body":"Here are next week's meeting notes.","expected":"low","why":"Trusted sender alone is insufficient."},{"id":"routine-school","sender":"professor@campus.example","body":"Here are the lecture slides.","expected":"low","why":"No near-term action."},{"id":"tomorrow","sender":"professor@campus.example","body":"Assignment due tomorrow.","expected":"low","why":"Tomorrow alone is outside the demo's urgency window."},{"id":"extended","sender":"professor@campus.example","subject":"Assignment due today","body":"The deadline has been extended until next week.","expected":"low","why":"Updated deadline supersedes stale subject."},{"id":"resolved","sender":"manager@team.example","body":"Yesterday's outage is resolved.","expected":"low","why":"Resolved incident is no longer urgent."},{"id":"resolved-subject","sender":"manager@team.example","subject":"URGENT outage","body":"The outage is resolved. No action is required.","expected":"low","why":"Resolution supersedes the stale urgent subject."},{"id":"canceled","sender":"recruiter@careers.example","subject":"URGENT interview","body":"The interview is canceled. No reply is needed.","expected":"low","why":"Cancellation supersedes stale subject."},{"id":"no-rush","sender":"manager@team.example","body":"No rush on the urgent report.","expected":"low","why":"Explicit no-rush qualifier."},{"id":"not-urgent","sender":"professor@campus.example","body":"This is not urgent. Review when you have time.","expected":"low","why":"Negated urgency."},{"id":"quoted-urgency","sender":"manager@team.example","body":"Here are the notes.\n> URGENT call me now","expected":"low","why":"Quoted history should not create a current request."},{"id":"urgent-sale","sender":"offers@shop.example","body":"URGENT flash sale ends tonight!","expected":"low","why":"Marketing takes precedence."},{"id":"trusted-newsletter","sender":"professor@campus.example","body":"URGENT department newsletter. Unsubscribe here.","expected":"low","why":"Subscription takes precedence over trust."},{"id":"flagged-subscription","sender":"manager@team.example","body":"Reply now.","subscription":true,"expected":"low","why":"Explicit subscription flag takes precedence."},{"id":"always-newsletter","sender":"vip@external.example","body":"Urgent newsletter.","settings":{"alwaysUrgent":"vip@external.example"},"expected":"low","why":"Subscription also outranks always-urgent contacts."},{"id":"saved-subscription","sender":"manager@team.example","body":"Call me now.","settings":{"subscriptionSources":"manager@team.example"},"expected":"low","why":"Saved subscription rule takes precedence."},{"id":"always-urgent","sender":"vip@external.example","body":"Here is an update.","settings":{"alwaysUrgent":"vip@external.example"},"expected":"urgent","why":"Explicit user override; not automatic sender verification."},{"id":"unknown-urgent","sender":"stranger@unknown.example","body":"URGENT reply immediately!","expected":"low","why":"Unknown sender cannot acquire trust through urgency."},{"id":"unknown-money","sender":"billing@unknown.example","body":"Emergency: transfer money now or your account closes today.","expected":"low","why":"Pressure language does not establish trust or legitimacy."},{"id":"unknown-password","sender":"security@unknown.example","body":"URGENT verify your password immediately.","expected":"low","why":"Unknown sender, regardless of claimed security role."},{"id":"unknown-school","sender":"professor@campus-alerts.example","body":"Assignment due today. Pay the fee immediately.","expected":"low","why":"Similar-looking school domain is not trusted."},{"id":"suffix-domain","sender":"dispatch@team.example.evil.test","body":"URGENT call me now.","expected":"low","why":"Trusted domain text inside a larger domain is not a match."},{"id":"lookalike-domain","sender":"dispatch@tearn.example","body":"URGENT call me now.","expected":"low","why":"Lookalike domain is not an exact match."},{"id":"untrusted-subdomain","sender":"dispatch@alerts.team.example","body":"URGENT call me now.","expected":"low","why":"Domain rule covers the exact domain only."},{"id":"trusted-name-untrusted-address","sender":"\"professor@campus.example\" <fraud@unknown.example>","body":"Urgent, reply now.","expected":"low","why":"Mailbox in angle brackets wins over a trusted-looking display name."},{"id":"two-addresses","sender":"professor@campus.example, fraud@unknown.example","body":"Urgent, reply now.","expected":"low","why":"Ambiguous sender field must not inherit the first address's trust."},{"id":"address-in-url","sender":"https://professor@campus.example","body":"Urgent, reply now.","expected":"low","why":"Embedded address is not a valid sender field."},{"id":"address-in-prose","sender":"Please contact professor@campus.example","body":"Urgent, reply now.","expected":"low","why":"Arbitrary text containing an address is not a sender identity."},{"id":"phone-in-email","sender":"15550101234@unknown.example","body":"Urgent, call me now.","expected":"low","why":"Email digits must not match a trusted phone number."},{"id":"unknown-phone","sender":"+1 (555) 010-9876","body":"Emergency. Call me now.","expected":"low","why":"Exact phone match required."},{"id":"unknown-today","sender":"stranger@unknown.example","body":"Please submit by tonight.","expected":"low","why":"Deadline language alone cannot confer trust."},{"id":"meeting-in-45","sender":"manager@team.example","body":"Please join the customer call in 45 minutes.","expected":"urgent","why":"Trusted near-term action."},{"id":"meeting-in-90","sender":"manager@team.example","body":"Please join the customer call in 90 minutes.","expected":"low","why":"Explicitly outside the one-hour phrase window."},{"id":"routine-duration","sender":"manager@team.example","body":"The recording runs for 20 minutes.","expected":"low","why":"Duration is not an action deadline."},{"id":"plain-near-time","sender":"manager@team.example","body":"The lecture starts in 20 minutes.","expected":"low","why":"Time mention without a recognized action is not enough."},{"id":"resolved-new-deadline","sender":"professor@campus.example","subject":"Outage resolved","body":"Please submit by tonight.","expected":"urgent","why":"Current deadline survives unrelated resolved subject."},{"id":"subscription-vs-always","sender":"vip@external.example","body":"Please call me now.","settings":{"alwaysUrgent":"vip@external.example","subscriptionSources":"vip@external.example"},"expected":"low","why":"Saved subscription beats always-urgent override."}]</script>
+
+    <details class="rules"><summary>Adjust the sorting rules</summary><div class="panel settings"><p>Put one email or phone number per line. Use <strong>@team.example</strong> only if you trust an entire domain. Trusted contacts need an immediate request, an action within an hour, or a deadline today or tonight. Always-urgent contacts skip checks 4 and 5. These preferences stay in this browser.</p><div class="setting-grid"><label class="field">Trusted school / work contacts<textarea id="trustedSources"></textarea></label><label class="field">Always-urgent contacts<textarea id="alwaysUrgent"></textarea></label><label class="field">Subscription senders · always low priority<textarea id="subscriptionSources"></textarea></label></div><p>Subscription signals always take precedence. “No rush” and “not urgent” apply only to their own sentence. Rules use simple phrases, so review the checks on each card and correct mistakes. Saved rule changes re-sort the visible messages without playing alerts.</p><button class="secondary" id="saveRules" type="button">Save rules</button></div></details>
     <p class="footnote"><strong>Priority is not a safety verdict.</strong> Urgent wording cannot make an unknown sender trusted. This demo matches the address you enter; it cannot authenticate senders, scan links, or detect every scam. An address that matches your contacts can still be spoofed. Low priority does not mean safe to open.</p>
-    <p class="footnote">Demo messages only; no live email or texts. Rules recognize immediate requests, action within an hour, and deadlines today or tonight. They can miss context, so use the explanation on each card and correct mistakes.</p>
+    <p class="footnote">Demo messages only; no live email or texts. Rules recognize immediate requests, action within an hour, and deadlines today or tonight. They can miss context, such as “due tomorrow” or an absolute date, so use the checks on each card and correct mistakes.</p>
   </main>
 
   <script>
@@ -142,6 +255,15 @@
         alwaysUrgent: "",
         subscriptionSources: ""
       };
+      const CHECKS = ["Not a subscription", "Sender is recognizable", "Sender is trusted", "Request is still current", "Needs action soon"];
+      const SUBSCRIPTION = /\b(unsubscribe|newsletter|subscription|weekly digest|special offer|promo code|flash sale)\b/i;
+      const CAN_WAIT = /\b(no rush|not urgent|not an emergency|when you have time|for your information|fyi only|no (?:action|response|reply) (?:is )?(?:needed|required))\b/i;
+      const RESOLVED = /\b(?:is|was|has been|now|already)\s+(?:resolved|fixed|restored|cancelled|canceled)\b|\b(?:outage|issue|incident|interview|meeting|emergency)\s+(?:resolved|fixed|cancelled|canceled)\b/i;
+      const POSTPONED = /\b(?:deadline|due date)\b.{0,60}\b(?:extended|postponed)\b/i;
+      const SAME_DAY = /\b(?:due|deadline(?: is)?|submit(?: by)?|reply by|respond by)\s+(?:today|tonight)\b/i;
+      const NEAR = /\b(?:in|within)\s+(?:the next\s+)?(?:(\d{1,3})\s+minutes?|(?:(?:an?|one)\s+)?hour)\b/i;
+      const ACTION = /\b(?:cover|join|confirm|submit|reply|respond|call|attend|send|finish|complete|approve|review)\b/i;
+      const IMMEDIATE = /\b(urgent|asap|immediately|emergency|outage|blocked|time-sensitive|right away|call me now|reply now|respond now|need you now)\b/i;
       function entries(value) { return String(value || "").split(/[\n,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean); }
       // Parse one identity, never an address or phone-like substring inside other text.
       // Matching this typed value is not authentication of a real email sender.
@@ -152,7 +274,7 @@
         if (/^[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(value)) {
           const [local, domain] = value.split("@");
           if (local.startsWith(".") || local.endsWith(".") || local.includes("..")) return null;
-          return { type: "email", value, domain };
+          return { type: "email", value, domain, fromMailbox: !!mailbox };
         }
         if (!mailbox && /^\+?[\d\s().-]+$/.test(value)) {
           const digits = value.replace(/\D/g, "");
@@ -172,48 +294,231 @@
         return String(value || "").split(/\r?\n/).filter(line => !/^\s*>/.test(line))
           .join("\n").split(/[.!?;\n]+|\bbut\b/i).map(x => x.trim()).filter(Boolean);
       }
-      function inactiveContext(text) {
-        if (/\b(no rush|not urgent|not an emergency|when you have time|for your information|fyi only|no (?:action|response|reply) (?:is )?(?:needed|required))\b/i.test(text)) return "explicitly says it can wait";
-        if (/\b(?:is|was|has been|now|already)\s+(?:resolved|fixed|restored|cancelled|canceled)\b|\b(?:outage|issue|incident|interview|meeting|emergency)\s+(?:resolved|fixed|cancelled|canceled)\b/i.test(text)) return "describes a resolved or canceled event";
-        if (/\b(?:deadline|due date)\b.{0,60}\b(?:extended|postponed)\b/i.test(text)) return "announces an extended or postponed deadline";
-        return "";
+      function inactiveMatch(text) {
+        let m;
+        if ((m = text.match(CAN_WAIT))) return { reason: "explicitly says it can wait", phrase: m[0] };
+        if ((m = text.match(RESOLVED))) return { reason: "describes a resolved or canceled event", phrase: m[0] };
+        if ((m = text.match(POSTPONED))) return { reason: "announces an extended or postponed deadline", phrase: m[0] };
+        return null;
       }
       function urgentSignal(text) {
-        if (inactiveContext(text)) return null;
-        const deadline = text.match(/\b(?:due|deadline(?: is)?|submit(?: by)?|reply by|respond by)\s+(?:today|tonight)\b/i);
+        if (inactiveMatch(text)) return null;
+        const deadline = text.match(SAME_DAY);
         if (deadline) return { rule: "Same-day deadline", phrase: deadline[0] };
-        const near = text.match(/\b(?:in|within)\s+(?:the next\s+)?(?:(\d{1,3})\s+minutes?|(?:(?:an?|one)\s+)?hour)\b/i);
-        const action = /\b(?:cover|join|confirm|submit|reply|respond|call|attend|send|finish|complete|approve|review)\b/i.test(text);
-        if (near && action && (!near[1] || (+near[1] > 0 && +near[1] <= 60))) return { rule: "Action within an hour", phrase: near[0] };
-        const immediate = text.match(/\b(urgent|asap|immediately|emergency|outage|blocked|time-sensitive|right away|call me now|reply now|respond now|need you now)\b/i);
+        const near = text.match(NEAR);
+        const action = text.match(ACTION);
+        if (near && action && (!near[1] || (+near[1] > 0 && +near[1] <= 60))) return { rule: "Action within an hour", phrase: near[0], action: action[0] };
+        const immediate = text.match(IMMEDIATE);
         return immediate ? { rule: "Immediate request", phrase: immediate[0] } : null;
       }
+      // Urgent-looking phrases that did not count because an earlier check stopped the message.
+      function ignoredSignals(message) {
+        const found = [];
+        for (const segment of [...currentSegments(message.subject), ...currentSegments(message.body)]) {
+          const signal = urgentSignal(segment);
+          if (signal) found.push({ phrase: signal.phrase, kind: "ignored" });
+          const loud = segment.match(IMMEDIATE);
+          if (loud && (!signal || loud[0] !== signal.phrase)) found.push({ phrase: loud[0], kind: "ignored" });
+        }
+        return found;
+      }
+      // Returns the category plus the five-check trace and the phrases that decided it.
       function classify(message, settings) {
-        const decision = (bucket, rule, reason) => ({ bucket, rule, reason });
+        const steps = [], marks = [];
+        const check = (status, detail) => steps.push({ title: CHECKS[steps.length], status, detail });
+        const decision = (bucket, rule, reason) => {
+          while (steps.length < CHECKS.length) check("skip", "Not needed: already decided above.");
+          return { bucket, rule, reason, steps, marks };
+        };
         const identity = parseSender(message.sender);
         const content = [message.subject, message.body].filter(Boolean).join(" ");
         const subscriptionRule = matchingRule(identity, settings.subscriptionSources);
-        if (subscriptionRule) return decision("low", "Subscription sender", `Matched your subscription rule “${subscriptionRule}”. This takes precedence over urgency.`);
-        if (message.subscription) return decision("low", "Subscription flag", "You marked this message as a newsletter or subscription.");
-        const subscription = content.match(/\b(unsubscribe|newsletter|subscription|weekly digest|special offer|promo code|flash sale)\b/i);
-        if (subscription) return decision("low", "Subscription wording", `Matched “${subscription[0]}”. Subscription signals take precedence over urgency.`);
-        if (!identity) return decision("low", "Unclear sender", "The sender is not one recognizable email address or phone number. No automatic trust was assigned.");
+        if (subscriptionRule) { check("stop", `Sender matches your subscription rule “${subscriptionRule}”.`); return decision("low", "Subscription sender", `Matched your subscription rule “${subscriptionRule}”. This takes precedence over urgency.`); }
+        if (message.subscription) { check("stop", "Marked as a newsletter or subscription."); return decision("low", "Subscription flag", "You marked this message as a newsletter or subscription."); }
+        const subscription = content.match(SUBSCRIPTION);
+        if (subscription) {
+          marks.push({ phrase: subscription[0], kind: "noise" }, ...ignoredSignals(message));
+          check("stop", `Contains “${subscription[0]}”. Subscription signals outrank urgent wording.`);
+          return decision("low", "Subscription wording", `Matched “${subscription[0]}”. Subscription signals take precedence over urgency.`);
+        }
+        check("pass", "No subscription or marketing wording.");
+        if (!identity) {
+          marks.push(...ignoredSignals(message));
+          check("stop", "Not exactly one email address or phone number, so no trust is assigned.");
+          return decision("low", "Unclear sender", "The sender is not one recognizable email address or phone number. No automatic trust was assigned.");
+        }
+        check("pass", `${identity.type === "email" ? "Email" : "Phone"}: ${identity.value}${identity.fromMailbox ? " (the address in < >, not the display name)" : ""}`);
         const alwaysRule = matchingRule(identity, settings.alwaysUrgent);
-        if (alwaysRule) return decision("urgent", "Always-urgent contact", `Matched your always-urgent rule “${alwaysRule}”. This is your override, not verification of the sender.`);
+        if (alwaysRule) {
+          check("override", `Always-urgent rule “${alwaysRule}”. Your override skips checks 4 and 5.`);
+          return decision("urgent", "Always-urgent contact", `Matched your always-urgent rule “${alwaysRule}”. This is your override, not verification of the sender.`);
+        }
         const trustedRule = matchingRule(identity, settings.trustedSources);
-        if (!trustedRule) return decision("low", "Untrusted sender", `“${identity.value}” does not match your trusted contacts. Urgent wording cannot grant trust.`);
+        if (!trustedRule) {
+          marks.push(...ignoredSignals(message));
+          check("stop", `“${identity.value}” is not a trusted contact. Urgent wording cannot grant trust.`);
+          return decision("low", "Untrusted sender", `“${identity.value}” does not match your trusted contacts. Urgent wording cannot grant trust.`);
+        }
+        check("pass", `Matches trusted rule “${trustedRule}”.`);
         const body = currentSegments(message.body);
-        const inactive = body.map(inactiveContext).find(Boolean);
+        const inactive = body.map(inactiveMatch).find(Boolean);
         // A current body update can supersede an old urgent subject. A separate
         // actionable sentence in that body is still eligible for an urgent alert.
         const candidates = [...body, ...(inactive ? [] : currentSegments(message.subject))];
         const signal = candidates.map(urgentSignal).find(Boolean);
-        if (signal) return decision("urgent", signal.rule, `Matched trusted rule “${trustedRule}” and “${signal.phrase}”.`);
-        const context = inactive || currentSegments(message.subject).map(inactiveContext).find(Boolean);
-        if (context) return decision("low", "Context says it can wait", `Trusted contact, but the message ${context}; no separate current urgent request was found.`);
+        if (signal) {
+          if (inactive) marks.push({ phrase: inactive.phrase, kind: "suppress" });
+          marks.push({ phrase: signal.phrase, kind: "urgent" });
+          if (signal.action) marks.push({ phrase: signal.action, kind: "action" });
+          check("pass", inactive ? `“${inactive.phrase}” applies only to its own sentence; another sentence is a current request.` : "No resolved, canceled, postponed, or “no rush” wording.");
+          check("pass", `${signal.rule}: “${signal.phrase}”${signal.action ? ` + action “${signal.action}”` : ""}.`);
+          return decision("urgent", signal.rule, `Matched trusted rule “${trustedRule}” and “${signal.phrase}”.`);
+        }
+        const context = inactive || currentSegments(message.subject).map(inactiveMatch).find(Boolean);
+        if (context) {
+          marks.push({ phrase: context.phrase, kind: "suppress" }, ...ignoredSignals({ subject: message.subject }));
+          check("stop", `The message ${context.reason}: “${context.phrase}”.${inactive && message.subject ? " This overrides the subject line." : ""}`);
+          return decision("low", "Context says it can wait", `Trusted contact, but the message ${context.reason}; no separate current urgent request was found.`);
+        }
+        const quoted = String(message.body || "").split(/\r?\n/).filter(line => /^\s*>/.test(line)).join(" ").match(IMMEDIATE);
+        if (quoted) marks.push({ phrase: quoted[0], kind: "ignored" });
+        check("pass", "No resolved, canceled, postponed, or “no rush” wording.");
+        check("stop", quoted ? `“${quoted[0]}” appears only in quoted history (lines starting with >), which is ignored.` : "No same-day deadline, action within an hour, or immediate request in the current text.");
         return decision("low", "Routine message", `Matched trusted rule “${trustedRule}”, but no current immediate request or recognized near-term deadline was found.`);
       }
       window.AlertTriage = Object.freeze({ classify, defaultSettings, parseSender });
+    }());
+  </script>
+  <script>
+    (function () {
+      "use strict";
+      // Previous rule version, kept only so the benchmark can compare against it.
+      // It matched keywords across the whole message and searched the sender text loosely.
+      function entries(value) { return String(value || "").split(/[\n,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean); }
+      function senderMatches(sender, rules) {
+        const value = String(sender || "").trim().toLowerCase();
+        const email = (value.match(/[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}/) || [])[0] || "";
+        const phone = value.replace(/\D/g, "");
+        return entries(rules).some(rule => {
+          if (rule.startsWith("@")) return !!email && email.endsWith(rule) && email.length > rule.length;
+          if (rule.includes("@")) return email === rule;
+          const digits = rule.replace(/\D/g, "");
+          return digits.length >= 7 && phone === digits;
+        });
+      }
+      function classify(message, settings) {
+        const sender = String(message.sender || "");
+        const content = [message.subject, message.body].filter(Boolean).join(" ").toLowerCase();
+        if (senderMatches(sender, settings.subscriptionSources)) return { bucket: "low" };
+        if (!!message.subscription || /\b(unsubscribe|newsletter|subscription|weekly digest|special offer|promo code|flash sale)\b/i.test(content)) return { bucket: "low" };
+        if (senderMatches(sender, settings.alwaysUrgent)) return { bucket: "urgent" };
+        const trusted = senderMatches(sender, settings.trustedSources);
+        const noRush = /\b(no rush|not urgent|when you have time|for your information|fyi only)\b/i.test(content);
+        const deadline = /\b(?:due|deadline(?: is)?|submit(?: by)?|reply by|respond by)\s+(?:today|tonight)\b/i.test(content);
+        const immediate = deadline || /\b(urgent|asap|immediately|emergency|outage|blocked|time-sensitive|right away|call me now|reply now|respond now|need you now|within (?:the next |an? )?(?:hour|30 minutes))\b/i.test(content);
+        return { bucket: trusted && immediate && !noRush ? "urgent" : "low" };
+      }
+      window.PreviousTriage = Object.freeze({ classify });
+    }());
+  </script>
+  <script>
+    (function () {
+      "use strict";
+      // Generates labeled test messages. The expected category comes from the
+      // scenario spec below, never from calling the classifier.
+      function rng(seed) {
+        let a = seed >>> 0;
+        return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+      }
+      const pick = (r, list) => list[Math.floor(r() * list.length)];
+      const int = (r, lo, hi) => lo + Math.floor(r() * (hi - lo + 1));
+      const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+      const TASKS = ["lab report", "problem set", "project proposal", "timesheet", "slide deck"];
+      const DOCS = ["draft", "budget sheet", "reading list", "shift plan"];
+      const THINGS = ["delivery", "client order", "demo", "shift swap"];
+      const SYSTEMS = ["server", "payment system", "email"];
+      const MEETINGS = ["team", "client", "project"];
+      const EVENTS = ["today's lecture", "the team meeting", "the workshop"];
+      const NAMES = ["alex", "sam", "jordan", "priya", "lee"];
+      const words = r => ({ task: pick(r, TASKS), doc: pick(r, DOCS), thing: pick(r, THINGS), system: pick(r, SYSTEMS), meeting: pick(r, MEETINGS), event: pick(r, EVENTS), soon: int(r, 5, 60), later: int(r, 61, 180) });
+      // Each scenario: group, whether a person would want an urgent alert, and a builder.
+      const KNOWN = [
+        { group: "Same-day deadline", urgent: true, make: w => ({ subject: `${cap(w.task)} reminder`, body: `The ${w.task} is due today. Please submit it.` }) },
+        { group: "Same-day deadline", urgent: true, make: w => ({ body: `Reminder: the deadline is tonight for the ${w.task}.` }) },
+        { group: "Same-day deadline", urgent: true, make: w => ({ body: `Please reply by tonight about the ${w.thing}.` }) },
+        { group: "Action within an hour", urgent: true, make: w => ({ body: `Can you cover my shift in ${w.soon} minutes?` }) },
+        { group: "Action within an hour", urgent: true, make: w => ({ subject: `${cap(w.meeting)} call`, body: `Please join the ${w.meeting} call in ${w.soon} minutes.` }) },
+        { group: "Action within an hour", urgent: true, make: w => ({ body: `Please confirm the ${w.thing} within the next hour.` }) },
+        { group: "Immediate request", urgent: true, make: w => ({ body: `Please call me now about the ${w.thing}.` }) },
+        { group: "Immediate request", urgent: true, make: w => ({ body: `The ${w.thing} is blocked. I need you now.` }) },
+        { group: "Immediate request", urgent: true, make: w => ({ body: `Reply ASAP about the ${w.thing}.` }) },
+        { group: "Mixed: can-wait + current request", urgent: true, make: w => ({ body: `No rush on the ${w.doc}, but please call me now about the ${w.thing}.` }) },
+        { group: "Mixed: can-wait + current request", urgent: true, make: w => ({ body: `The ${w.system} outage is resolved. Please join the follow-up call in ${w.soon} minutes.` }) },
+        { group: "Routine", urgent: false, make: w => ({ subject: "Notes", body: `Here are the notes from ${w.event}.` }) },
+        { group: "Routine", urgent: false, make: w => ({ body: `Thanks for your help with the ${w.task}.` }) },
+        { group: "Not soon enough", urgent: false, make: w => ({ body: `The ${w.task} is due tomorrow.` }) },
+        { group: "Not soon enough", urgent: false, make: w => ({ body: `Can you join the ${w.meeting} call in ${w.later} minutes?` }) },
+        { group: "Not soon enough", urgent: false, make: w => ({ body: `Let's talk about the ${w.thing} next week.` }) },
+        { group: "Says it can wait", urgent: false, make: w => ({ body: `Please review the ${w.doc} when you have time.` }) },
+        { group: "Says it can wait", urgent: false, make: w => ({ body: `Not urgent, but take a look at the ${w.doc}.` }) },
+        { group: "Stale urgent subject", urgent: false, make: w => ({ subject: `URGENT: ${w.system} outage`, body: `The ${w.system} outage is resolved. No action is needed.` }) },
+        { group: "Stale urgent subject", urgent: false, make: w => ({ subject: `${cap(w.task)} due today`, body: "The deadline has been extended to next week." }) },
+        { group: "Stale urgent subject", urgent: false, make: w => ({ subject: `Join the interview in ${w.soon} minutes`, body: "The interview is canceled. No reply is needed." }) },
+        { group: "Urgency only in quoted history", urgent: false, make: () => ({ body: "Thanks, my notes are below.\n> URGENT: call me now" }) }
+      ];
+      // Everyday wording the rules were not written for. Labels are human judgment.
+      const NATURAL = [
+        { group: "Natural: deadline wording", urgent: true, make: w => ({ body: `Please submit the ${w.task} by tonight.` }) },
+        { group: "Natural: deadline wording", urgent: true, make: w => ({ body: `Please send the ${w.doc} before 5pm today.` }) },
+        { group: "Natural: time wording", urgent: true, make: () => ({ body: "Can you call me in half an hour?" }) },
+        { group: "Natural: time wording", urgent: true, make: w => ({ body: `Please join the ${w.meeting} call in 15 mins.` }) },
+        { group: "Natural: time wording", urgent: true, make: w => ({ body: `Need you on the ${w.meeting} call in 1 hour.` }) },
+        { group: "Natural: pressure wording", urgent: true, make: () => ({ body: "This can't wait. Please call me back." }) },
+        { group: "Natural: update wording", urgent: false, make: w => ({ subject: `URGENT: ${w.system} outage`, body: `The ${w.system} issue has been sorted out.` }) },
+        { group: "Natural: update wording", urgent: false, make: w => ({ subject: `Join the interview in ${w.soon} minutes`, body: "The interview has been called off." }) },
+        { group: "Natural: update wording", urgent: false, make: w => ({ subject: `${cap(w.task)} due today`, body: "The deadline moved to Friday." }) },
+        { group: "Natural: can-wait wording", urgent: false, make: () => ({ body: "Please don't worry about replying right away." }) },
+        { group: "Natural: can-wait wording", urgent: false, make: w => ({ body: `The ${w.meeting} call is in 30 minutes, but you don't need to join.` }) }
+      ];
+      const TRUSTED = [
+        { kind: "Trusted: exact email", make: () => "professor@campus.example" },
+        { kind: "Trusted: exact email", make: () => "recruiter@careers.example" },
+        { kind: "Trusted: domain rule", make: r => `${pick(r, NAMES)}@team.example` },
+        { kind: "Trusted: display name + mailbox", make: () => "Prof. Lee <professor@campus.example>" },
+        { kind: "Trusted: mixed case", make: () => "Professor@Campus.Example" },
+        { kind: "Trusted: phone", make: r => pick(r, ["+1 (555) 010-1234", "+1 555 010 1234", "15550101234"]), text: true }
+      ];
+      const UNTRUSTED = [
+        { kind: "Untrusted: unknown sender", make: r => `${pick(r, NAMES)}@unknown.example` },
+        { kind: "Untrusted: lookalike domain", make: r => `${pick(r, NAMES)}@team-example.com` },
+        { kind: "Untrusted: subdomain", make: r => `${pick(r, NAMES)}@mail.team.example` },
+        { kind: "Untrusted: trusted domain as prefix", make: () => "dispatch@team.example.evil.test" },
+        { kind: "Untrusted: spoofed display name", make: () => '"professor@campus.example" <fraud@unknown.example>' },
+        { kind: "Untrusted: unknown phone", make: () => "+1 555 010 9999", text: true },
+        { kind: "Untrusted: phone digits in email", make: () => "15550101234@unknown.example" }
+      ];
+      function one(r, natural) {
+        const scenario = natural && r() < 0.4 ? pick(r, NATURAL) : pick(r, KNOWN);
+        const trusted = r() < 0.6;
+        const sender = pick(r, trusted ? TRUSTED : UNTRUSTED);
+        const noise = r() < 0.12 ? pick(r, ["footer", "digest"]) : "";
+        const quoted = scenario.group !== "Urgency only in quoted history" && r() < 0.1;
+        const parts = scenario.make(words(r));
+        let subject = sender.text ? "" : (parts.subject || "");
+        let body = parts.body;
+        if (noise === "footer") body += " Unsubscribe here.";
+        if (noise === "digest") subject = sender.text ? subject : `Weekly digest: ${subject || "updates"}`;
+        if (noise === "digest" && sender.text) body += " Unsubscribe here.";
+        if (quoted) body += "\n> Earlier: URGENT, call me now";
+        const expected = !noise && trusted && scenario.urgent ? "urgent" : "low";
+        const why = noise ? "Subscription wording outranks everything else" : !trusted ? `${sender.kind}: urgent wording cannot grant trust` : scenario.urgent ? `Trusted sender + ${scenario.group.toLowerCase()}` : `Trusted sender, but ${scenario.group.toLowerCase()}`;
+        return { channel: sender.text ? "Text" : "Email", sender: sender.make(r), subject, body, expected, expectedWhy: why, group: noise ? "Subscription noise" : !trusted ? sender.kind : scenario.group, natural: scenario.group.startsWith("Natural") };
+      }
+      function generate({ count = 100, seed = 1, natural = false } = {}) {
+        const r = rng(seed);
+        return Array.from({ length: count }, () => one(r, natural));
+      }
+      window.MessageGenerator = Object.freeze({ generate });
     }());
   </script>
   <script>
@@ -239,7 +544,7 @@
         catch (_) { return false; }
       }
       function resort() {
-        for (const item of messages) Object.assign(item, classify(item, settings));
+        for (const item of messages) Object.assign(item, classify(item, settings), { manual: false });
         render();
       }
       function contactKey(value) {
@@ -354,15 +659,64 @@
         if (value !== undefined) node.textContent = value;
         return node;
       }
+      // Split text into plain strings and <mark> nodes for the phrases that decided the category.
+      function highlight(text, marks) {
+        const value = String(text || "");
+        const lower = value.toLowerCase();
+        const ranges = [];
+        for (const mark of [...(marks || [])].sort((a, b) => b.phrase.length - a.phrase.length)) {
+          const needle = mark.phrase.toLowerCase();
+          if (!needle) continue;
+          for (let at = lower.indexOf(needle); at !== -1; at = lower.indexOf(needle, at + needle.length)) {
+            const end = at + needle.length;
+            if (!ranges.some(r => at < r.end && end > r.start)) ranges.push({ start: at, end, kind: mark.kind });
+          }
+        }
+        ranges.sort((a, b) => a.start - b.start);
+        const parts = [];
+        let cursor = 0;
+        for (const r of ranges) {
+          if (r.start > cursor) parts.push(value.slice(cursor, r.start));
+          parts.push(el("mark", "hl-" + r.kind, value.slice(r.start, r.end)));
+          cursor = r.end;
+        }
+        if (cursor < value.length) parts.push(value.slice(cursor));
+        return parts;
+      }
+      const ICONS = { pass: "✓", stop: "✕", skip: "–", override: "★" };
+      function renderTrace(result, manual) {
+        const why = el("div", "why");
+        const head = el("div", "why-head");
+        head.append(el("span", "", "Why this category?"), el("span", "rule-name", result.rule));
+        why.append(head);
+        if (manual) why.append(el("p", "manual-note", "You moved this card by hand. The checks below show the automatic decision."));
+        const list = el("ol", "trace");
+        for (const step of result.steps || []) {
+          const li = el("li", step.status);
+          const text = el("div", "");
+          text.append(el("span", "title", step.title + " — "), el("span", "detail", step.detail));
+          li.append(el("span", "icon", ICONS[step.status] || "?"), text);
+          list.append(li);
+        }
+        why.append(list);
+        why.append(el("div", "verdict " + result.bucket, result.bucket === "urgent" ? "→ Urgent: distinct tone + “Urgent message. Please check.”" : "→ Low priority: soft tone only"));
+        return why;
+      }
       function renderCard(item) {
         const card = el("article", "card");
         const top = el("div", "card-top");
-        top.append(el("span", "channel", item.channel));
-        card.append(top, el("h4", "", item.subject || (item.channel === "Text" ? "New text message" : "(No subject)")), el("div", "sender", item.sender));
-        if (item.body) card.append(el("p", "preview", item.body));
-        const why = el("div", "why");
-        why.append(el("strong", "", "Why this category? " + item.rule), el("div", "", item.reason));
-        card.append(why);
+        top.append(el("span", "channel", item.channel + (item.expected ? " · generated" : "")));
+        if (item.expected) {
+          const ok = item.expected === (item.manual ? item.auto.bucket : item.bucket);
+          const pill = el("span", "expect " + (ok ? "ok" : "bad"), `${ok ? "✓" : "✕"} Generator expected ${item.expected === "urgent" ? "Urgent" : "Low"}`);
+          pill.title = item.expectedWhy; top.append(pill);
+        }
+        const title = el("h4", "");
+        if (item.subject) title.append(...highlight(item.subject, item.marks));
+        else title.textContent = item.channel === "Text" ? "New text message" : "(No subject)";
+        card.append(top, title, el("div", "sender", item.sender));
+        if (item.body) { const preview = el("p", "preview"); preview.append(...highlight(item.body, item.marks)); card.append(preview); }
+        card.append(renderTrace(item.manual ? item.auto : item, item.manual));
         const actions = el("div", "card-actions");
         const play = el("button", "text-button", item.bucket === "urgent" ? "▶ Play sound + voice" : "▶ Play sound");
         play.type = "button";
@@ -370,6 +724,8 @@
         const move = el("button", "text-button", item.bucket === "urgent" ? "Move to Low Priority" : "Move to Urgent / Job");
         move.type = "button";
         move.addEventListener("click", () => {
+          if (!item.manual) item.auto = { bucket: item.bucket, rule: item.rule, steps: item.steps };
+          item.manual = true;
           item.bucket = item.bucket === "urgent" ? "low" : "urgent";
           item.rule = "Manual move";
           item.reason = "Manually moved for this demo message. Edit the rules to change future sorting.";
@@ -402,49 +758,59 @@
           else for (const item of selected) container.append(renderCard(item));
         }
       }
+      const exampleSets = {
+        loadExamples: {
+          messages: [
+            { channel: "Email", sender: "professor@campus.example", subject: "Assignment due today", body: "Please submit your final assignment today." },
+            { channel: "Email", sender: "recruiter@careers.example", subject: "Interview confirmation needed", body: "Please respond within the next hour to confirm your interview." },
+            { channel: "Email", sender: "schedule@team.example", subject: "Next week's rota", body: "Please review when you have time." },
+            { channel: "Email", sender: "offers@shop.example", subject: "URGENT: flash sale", body: "50% off today. Unsubscribe at any time." },
+            { channel: "Text", sender: "+1 (555) 010-9876", body: "Your subscription has been renewed." }
+          ],
+          status: "Everyday examples, sorted silently. Default rules give 2 urgent and 3 low priority. Each card shows the five checks."
+        },
+        loadEdgeCases: {
+          messages: [
+            { sender: "stranger@unknown.example", subject: "URGENT reply now", body: "Please send the document immediately." },
+            { sender: "professor@campus.example", subject: "URGENT department newsletter", body: "Weekly digest. Unsubscribe here." },
+            { sender: "manager@team.example", subject: "Review the plan", body: "Not urgent. When you have time." },
+            { sender: "professor@campus.example", subject: "Assignment due tomorrow", body: "A reminder about tomorrow's assignment." },
+            { sender: "professor@campus.example", subject: "Lecture notes", body: "Here are the slides from class." }
+          ].map(x => ({ ...x, channel: "Email" })),
+          status: "Tricky messages, sorted silently. Default rules keep all five low priority; see which check stopped each one."
+        },
+        loadScamExamples: {
+          messages: [
+            { sender: "security@unknown.example", subject: "URGENT verify your account", body: "Send your password immediately or your account will close." },
+            { sender: "dispatch@team.example.evil.test", subject: "Emergency payment", body: "Transfer money now. This is urgent." },
+            { sender: '"professor@campus.example" <fraud@unknown.example>', subject: "Assignment due today", body: "Pay the fee immediately." },
+            { sender: "15550101234@unknown.example", subject: "Call me now", body: "URGENT: your delivery is blocked." },
+            { sender: "offers@shop.example", subject: "URGENT flash sale", body: "Special offer ends tonight. Unsubscribe here." }
+          ].map(x => ({ ...x, channel: "Email" })),
+          status: "Scam-like messages, sorted silently. Default rules keep all five low priority. This shows priority rules, not scam detection."
+        }
+      };
+      function loadSet(id) {
+        messages = [];
+        for (const example of exampleSets[id].messages) addMessage(example, false);
+        for (const key of Object.keys(exampleSets)) $(key).setAttribute("aria-pressed", String(key === id));
+        setStatus(exampleSets[id].status);
+      }
+      for (const id of Object.keys(exampleSets)) $(id).addEventListener("click", () => loadSet(id));
       $("messageForm").addEventListener("submit", event => {
         event.preventDefault();
         addMessage({ channel: $("channel").value, sender: $("sender").value.trim(), subject: $("channel").value === "Email" ? $("subject").value.trim() : "", body: $("body").value.trim(), subscription: $("subscription").checked });
         $("subject").value = "";
         $("body").value = "";
         $("subscription").checked = false;
+        setStatus(messages[0].bucket === "urgent" ? "Your message was sorted into Urgent / Job. Its checks are on the top card." : "Your message was sorted into Low Priority / Subscription. Its checks are on the top card.");
+        $("inbox").scrollIntoView?.({ behavior: "smooth", block: "start" });
       });
       $("channel").addEventListener("change", () => { $("subjectField").hidden = $("channel").value === "Text"; });
-      $("loadExamples").addEventListener("click", () => {
-        messages = [];
-        const examples = [
-          { channel: "Email", sender: "professor@campus.example", subject: "Assignment due today", body: "Please submit your final assignment today." },
-          { channel: "Email", sender: "recruiter@careers.example", subject: "Interview confirmation needed", body: "Please respond within the next hour to confirm your interview." },
-          { channel: "Email", sender: "schedule@team.example", subject: "Next week's rota", body: "Please review when you have time." },
-          { channel: "Email", sender: "offers@shop.example", subject: "URGENT: flash sale", body: "50% off today. Unsubscribe at any time.", subscription: true },
-          { channel: "Text", sender: "+1 (555) 010-9876", body: "Your subscription has been renewed." }
-        ];
-        for (const example of examples) addMessage(example, false);
-        setStatus("Five examples sorted using your saved rules. Default rules give 2 urgent and 3 low priority. Select Play to hear each alert.");
+      $("clearMessages").addEventListener("click", () => {
+        stopAlerts(); messages = []; render(); setStatus("Demo inbox cleared.");
+        for (const key of Object.keys(exampleSets)) $(key).setAttribute("aria-pressed", "false");
       });
-      $("loadEdgeCases").addEventListener("click", () => {
-        messages = [];
-        for (const example of [
-          { sender: "stranger@unknown.example", subject: "URGENT reply now", body: "Please send the document immediately." },
-          { sender: "professor@campus.example", subject: "URGENT department newsletter", body: "Weekly digest. Unsubscribe here." },
-          { sender: "manager@team.example", subject: "Review the plan", body: "Not urgent. When you have time." },
-          { sender: "professor@campus.example", subject: "Assignment due tomorrow", body: "A reminder about tomorrow's assignment." },
-          { sender: "professor@campus.example", subject: "Lecture notes", body: "Here are the slides from class." }
-        ]) addMessage({ ...example, channel: "Email" }, false);
-        setStatus("Five tricky messages sorted silently. Default rules keep all five low priority; saved sender rules may change this.");
-      });
-      $("loadScamExamples").addEventListener("click", () => {
-        messages = [];
-        for (const example of [
-          { sender: "security@unknown.example", subject: "URGENT verify your account", body: "Send your password immediately or your account will close." },
-          { sender: "dispatch@team.example.evil.test", subject: "Emergency payment", body: "Transfer money now. This is urgent." },
-          { sender: '"professor@campus.example" <fraud@unknown.example>', subject: "Assignment due today", body: "Pay the fee immediately." },
-          { sender: "15550101234@unknown.example", subject: "Call me now", body: "URGENT: your delivery is blocked." },
-          { sender: "offers@shop.example", subject: "URGENT flash sale", body: "Special offer ends tonight. Unsubscribe here." }
-        ]) addMessage({ ...example, channel: "Email" }, false);
-        setStatus("Scam-like examples loaded silently. Default rules keep all five low priority. This demonstrates priority rules, not scam detection.");
-      });
-      $("clearMessages").addEventListener("click", () => { stopAlerts(); messages = []; render(); setStatus("Demo inbox cleared."); });
       $("stopAlerts").addEventListener("click", stopAlerts);
       for (const id of ["soundEnabled", "voiceEnabled"]) $(id).addEventListener("change", stopAlerts);
       window.addEventListener("pagehide", stopAlerts);
@@ -461,6 +827,104 @@
         resort();
         setStatus(persistRules() ? "Sorting rules saved. Visible messages re-sorted silently." : "Rules active for this session, but this browser could not save them.");
       });
+
+      // Benchmark: always uses the default contacts plus each case's own settings, never the viewer's saved rules.
+      const label = bucket => bucket === "urgent" ? "Urgent" : "Low";
+      function scoreText(results, key) {
+        const correct = results.filter(r => r[key] === r.expected).length;
+        const missed = results.filter(r => r.expected === "urgent" && r[key] !== "urgent").length;
+        const extra = results.filter(r => r.expected === "low" && r[key] === "urgent").length;
+        return { score: `${correct} / ${results.length}`, detail: `${missed} missed urgent · ${extra} unnecessary urgent alerts`, perfect: correct === results.length };
+      }
+      function renderBenchList(results) {
+        const list = $("benchList");
+        const rows = $("benchChangedOnly").checked ? results.filter(r => r.previous !== r.expected) : results;
+        const header = el("div", "bench-head");
+        header.append(el("span", "", "Current"), el("span", "", "Previous"), el("span", "", "Case · expected · reason"));
+        const nodes = [header];
+        for (const r of rows) {
+          const row = el("details", "bench-row");
+          const summary = el("summary");
+          const pill = (actual) => el("span", "pill " + (actual === r.expected ? "ok" : "bad"), (actual === r.expected ? "✓ " : "✕ ") + label(actual));
+          const name = el("span", "case-name", `${r.sample.id} · expected ${label(r.expected)}`);
+          name.append(el("small", "", r.sample.why));
+          summary.append(pill(r.current), pill(r.previous), name);
+          const body = el("div", "body");
+          const msg = el("div", "case-msg");
+          msg.append(`From: ${r.sample.sender}\n`);
+          if (r.sample.subject) { msg.append("Subject: ", ...highlight(r.sample.subject, r.result.marks), "\n"); }
+          if (r.sample.body) msg.append(...highlight(r.sample.body, r.result.marks));
+          body.append(msg, renderTrace(r.result, false));
+          row.append(summary, body);
+          nodes.push(row);
+        }
+        list.replaceChildren(...nodes);
+      }
+      let benchResults = null;
+      $("runBenchmark").addEventListener("click", () => {
+        let cases;
+        try { cases = JSON.parse($("benchmarkCases").textContent); }
+        catch (_) { $("benchCurrentDetail").textContent = "The test set could not be loaded."; $("benchSummary").hidden = false; return; }
+        benchResults = cases.map(sample => {
+          const rules = { ...defaultSettings, ...sample.settings };
+          const result = classify(sample, rules);
+          return { sample, expected: sample.expected, result, current: result.bucket, previous: window.PreviousTriage.classify(sample, rules).bucket };
+        });
+        const current = scoreText(benchResults, "current"), previous = scoreText(benchResults, "previous");
+        $("benchCurrent").textContent = current.score; $("benchCurrentDetail").textContent = current.detail;
+        $("benchPrevious").textContent = previous.score; $("benchPreviousDetail").textContent = previous.detail;
+        $("benchCurrentBox").className = "score " + (current.perfect ? "good" : "bad");
+        $("benchPreviousBox").className = "score " + (previous.perfect ? "good" : "bad");
+        $("benchSummary").hidden = false; $("benchFilterWrap").hidden = false;
+        $("runBenchmark").textContent = "Run again";
+        renderBenchList(benchResults);
+      });
+      $("benchChangedOnly").addEventListener("change", () => { if (benchResults) renderBenchList(benchResults); });
+
+      // Generated stress test: expected labels come from the generator's scenario spec.
+      function genOptions() {
+        const seed = Math.max(1, Math.floor(Number($("genSeed").value) || 1));
+        return { count: Number($("genCount").value) || 500, seed, natural: !!$("genNatural").checked };
+      }
+      $("runGenerator").addEventListener("click", () => {
+        const options = genOptions();
+        const generated = window.MessageGenerator.generate(options);
+        const results = generated.map(sample => ({ sample, result: classify(sample, defaultSettings) }));
+        const failures = results.filter(r => r.result.bucket !== r.sample.expected);
+        const missed = failures.filter(r => r.sample.expected === "urgent").length;
+        $("genScore").textContent = `${results.length - failures.length} / ${results.length}`;
+        $("genDetail").textContent = `${missed} missed urgent · ${failures.length - missed} unnecessary urgent alerts · seed ${options.seed}${options.natural ? " · natural phrasing on" : ""}`;
+        $("genScoreBox").className = "score " + (failures.length ? "bad" : "good");
+        const groups = {};
+        for (const r of failures) groups[r.sample.group] = (groups[r.sample.group] || 0) + 1;
+        const groupNodes = Object.entries(groups).sort((a, b) => b[1] - a[1]).map(([name, count]) => { const row = el("div"); row.append(el("span", "", name), el("strong", "", String(count))); return row; });
+        $("genGroups").replaceChildren(...(groupNodes.length ? groupNodes : [el("div", "", "No failures.")]));
+        $("genSummary").hidden = false;
+        const rows = failures.slice(0, 25).map(r => {
+          const row = el("details", "bench-row");
+          const summary = el("summary");
+          summary.append(el("span", "pill bad", "✕ " + label(r.result.bucket)), el("span", "pill ok", "Expected " + label(r.sample.expected)));
+          const name = el("span", "case-name", r.sample.group); name.append(el("small", "", r.sample.expectedWhy)); summary.append(name);
+          const body = el("div", "body"); const msg = el("div", "case-msg");
+          msg.append(`From: ${r.sample.sender}\n`);
+          if (r.sample.subject) msg.append("Subject: ", ...highlight(r.sample.subject, r.result.marks), "\n");
+          msg.append(...highlight(r.sample.body, r.result.marks));
+          body.append(msg, renderTrace(r.result, false)); row.append(summary, body);
+          return row;
+        });
+        if (failures.length > 25) rows.push(el("p", "hint", `Showing 25 of ${failures.length} failures.`));
+        $("genList").replaceChildren(...rows);
+      });
+      $("addGenerated").addEventListener("click", () => {
+        const seed = 1 + Math.floor(Math.random() * 1e9);
+        const [message] = window.MessageGenerator.generate({ count: 1, seed, natural: !!$("genNatural").checked });
+        for (const key of Object.keys(exampleSets)) $(key).setAttribute("aria-pressed", "false");
+        addMessage(message);
+        const ok = messages[0].bucket === message.expected;
+        setStatus(`New generated ${message.channel.toLowerCase()} arrived (seed ${seed}). ${ok ? "The classifier matched the generator's expected category." : "The classifier disagreed with the generator's expected category; see the top card."}`);
+        $("inbox").scrollIntoView?.({ behavior: "smooth", block: "start" });
+      });
+
       if (document.modelContext && typeof document.modelContext.registerTool === "function") {
         const lifecycle = new AbortController();
         window.addEventListener("pagehide", () => lifecycle.abort(), { once: true });
@@ -492,7 +956,7 @@
           }, { signal: lifecycle.signal })).catch(() => {});
         } catch (_) { /* Tool support is optional in browsers. */ }
       }
-      render();
+      loadSet("loadExamples");
     }());
   </script>
 </body>
