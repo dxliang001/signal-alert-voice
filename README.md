@@ -49,14 +49,15 @@ Full rule details are in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Evaluation and error analysis
 
-[`tests/classification-cases.json`](tests/classification-cases.json) contains **46 synthetic messages** (13 urgent, 33 low priority), each with an expected category and a one-line rationale. The cases cover school and work requests, stale subjects, negation, scam-like pressure, lookalike domains, and sender-parsing edge cases.
+[`tests/classification-cases.json`](tests/classification-cases.json) contains **78 synthetic messages** (28 urgent, 50 low priority), each with an expected category and a one-line rationale. The original 46 cases cover school and work requests, stale subjects, negation, scam-like pressure, lookalike domains, and sender-parsing edge cases. Another 32 regressions cover half-hour deadlines, called-off events, deferred replies, and negative cases such as unrelated reassurance, negated cancellation, quoted history, and separate current requests.
 
 | Rule version | Urgent messages missed | Unnecessary urgent alerts | Cases matching expectation |
 |---|---|---|---|
-| Previous rules (whole-message keyword matching) | 3 | 9 | 34 / 46 |
-| Current rules | 0 | 0 | 46 / 46 |
+| Previous rules (whole-message keyword matching) | 8 | 20 | 50 / 78 |
+| Clause-scoped rules before the focused phrase fixes | 5 | 11 | 62 / 78 |
+| Current rules | 0 | 0 | 78 / 78 |
 
-What the previous rules got wrong, grouped by cause:
+What the previous whole-message rules got wrong on the original 46 cases, grouped by cause:
 
 | Failure pattern | Cases | Example | Fix |
 |---|---|---|---|
@@ -67,7 +68,7 @@ What the previous rules got wrong, grouped by cause:
 
 The misses came from depending on keywords. The false alarms came from ignoring context and from loose sender matching.
 
-The demo includes a **"Check the rules against the test set"** panel that runs all 46 cases in the browser against both the current and previous rules, and shows the five-check trace for each case.
+The demo includes a **"Check the rules against the test set"** panel that runs all 78 cases in the browser against both the current and previous rules, and shows the five-check trace for each case. Phrase regressions also assert the deciding rule, matched explanation, and trace evidence. The original 46 decisions, including their traces and highlights, are unchanged by these phrase fixes.
 
 **Caveat:** I wrote this set and tuned the rules against it, so it is a regression suite, not an independent accuracy estimate for real inboxes.
 
@@ -91,10 +92,12 @@ Known phrasing uses the same vocabulary the rules were written for, so a perfect
 | Missed or misread | Example |
 |---|---|
 | Deadline without "due" / "submit by" | "Please submit the timesheet by tonight." |
-| Time in other units | "in half an hour", "in 15 mins", "in 1 hour" |
+| Time in other units | "in 15 mins", "in 1 hour" |
 | Pressure without a keyword | "This can't wait. Please call me back." |
-| Updates in other words (stale subject wins) | "The interview has been called off." |
-| Negated urgency phrase | "Please don't worry about replying right away." |
+| Updates in other words (stale subject wins) | "The system issue has been sorted out." |
+| Negated attendance request | "The planning call is in 30 minutes, but you don't need to join." |
+
+The rules now recognize "in half an hour", "has been called off", and "don't worry about replying right away" (including typographic apostrophes). These scenarios have moved into the generator's known-phrasing set so they stay covered.
 
 The demo's **"Stress-test with generated messages"** panel runs this in the browser. Set the count and seed (the same seed always gives the same messages), turn natural phrasing on or off, and open any failure to see its five-check trace. **"Send one random message to the inbox"** delivers a generated message as if it just arrived, plays its alert, and shows whether the classifier matched the generator's expected category.
 

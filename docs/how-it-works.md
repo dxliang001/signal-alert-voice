@@ -32,7 +32,7 @@ Subscription checks look at the whole message, including quoted lines, so they s
 A message is urgent if any current clause contains:
 
 - **Same-day deadline**: `due today`, `deadline is tonight`, `submit by today`, `reply by tonight`, `respond by today`
-- **Action within an hour**: a time window of 60 minutes or less (`in 20 minutes`, `within the next hour`) together with an action verb such as cover, join, confirm, submit, reply, respond, call, attend, send, finish, complete, approve, or review
+- **Action within an hour**: a time window of 60 minutes or less (`in 20 minutes`, `within the next hour`, `in half an hour`, `within half an hour`) together with an action verb such as cover, join, confirm, submit, reply, respond, call, attend, send, finish, complete, approve, or review
 - **Immediate request**: `urgent`, `ASAP`, `immediately`, `emergency`, `outage`, `blocked`, `time-sensitive`, `right away`, `call me now`, `reply now`, `respond now`, `need you now`
 
 A deadline tomorrow is not treated as urgent by itself.
@@ -41,8 +41,8 @@ A deadline tomorrow is not treated as urgent by itself.
 
 These apply only to the clause they appear in. Messages are split on sentence punctuation, line breaks, and "but".
 
-- **Can wait**: `no rush`, `not urgent`, `not an emergency`, `when you have time`, `for your information`, `FYI only`, `no action/response/reply needed/required`
-- **Resolved or canceled**: `is resolved`, `has been fixed`, `already canceled`, `interview canceled`
+- **Can wait**: `no rush`, `not urgent`, `not an emergency`, `when you have time`, `for your information`, `FYI only`, `no action/response/reply needed/required`, `don't worry about replying right away` (also `do not`, typographic apostrophes, `responding`, and `immediately`)
+- **Resolved or canceled**: `is resolved`, `has been fixed`, `already canceled`, `interview canceled`, `has been called off`, `meeting called off`. Negated cancellation such as `is not called off` does not match this rule.
 - **Postponed**: `deadline … extended`, `due date … postponed`
 
 If the body contains resolved or can-wait context, the subject is not used as an urgent signal. This lets a body update supersede a stale "URGENT" subject, while a separate current request in the body can still trigger an alert.
