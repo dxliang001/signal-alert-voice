@@ -168,10 +168,10 @@ test('in-page benchmark compares current and previous rules', () => {
   a.nodes.benchmarkCases.textContent = fs.readFileSync(require('node:path').join(__dirname, 'classification-cases.json'), 'utf8');
   a.nodes.benchChangedOnly.checked = true;
   a.click('runBenchmark');
-  assert.equal(a.nodes.benchCurrent.textContent, '46 / 46');
-  assert.equal(a.nodes.benchPrevious.textContent, '34 / 46');
-  assert.match(a.nodes.benchPreviousDetail.textContent, /3 missed urgent · 9 unnecessary/);
-  assert.equal(a.nodes.benchList.children.length, 13);
+  assert.equal(a.nodes.benchCurrent.textContent, '78 / 78');
+  assert.equal(a.nodes.benchPrevious.textContent, '50 / 78');
+  assert.match(a.nodes.benchPreviousDetail.textContent, /8 missed urgent · 20 unnecessary/);
+  assert.equal(a.nodes.benchList.children.length, 29);
 });
 
 test('generated messages: known phrasing always matches the generator spec', () => {
@@ -194,6 +194,24 @@ test('generated messages: natural phrasing exposes known gaps without changing k
   const failures = natural.filter(m => a.classify(m).bucket !== m.expected);
   assert.ok(failures.length > 0, 'natural phrasing should reveal at least one gap');
   assert.ok(failures.every(m => m.natural), 'every failure comes from natural phrasing');
+});
+
+test('newly supported phrases stay covered by the known-phrasing generator', () => {
+  const a = app();
+  const phrases = ['in half an hour', 'has been called off', "don't worry about replying right away"];
+  const seen = new Set();
+  for (let seed = 1; seed <= 10; seed++) {
+    for (const message of a.context.window.MessageGenerator.generate({ count: 300, seed })) {
+      for (const phrase of phrases) {
+        if ([message.subject, message.body].filter(Boolean).join(' ').includes(phrase)) {
+          seen.add(phrase);
+          assert.equal(message.natural, false, phrase);
+          assert.equal(a.classify(message).bucket, message.expected, `${phrase}: ${message.body}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual([...seen].sort(), phrases.sort());
 });
 
 test('generator panel reports a score and a sent message plays its alert', () => {

@@ -29,6 +29,8 @@ test('every decision names its rule and explains it', () => {
     const actual = classify(sample, { ...defaultSettings, ...sample.settings });
     assert.ok(actual.rule, `missing rule: ${sample.id}`);
     assert.ok(actual.reason, `missing explanation: ${sample.id}`);
+    if (sample.expectedRule) assert.equal(actual.rule, sample.expectedRule, sample.id);
+    if (sample.expectedPhrase) assert.ok(actual.reason.includes(sample.expectedPhrase), sample.id);
   }
 });
 
@@ -45,5 +47,22 @@ test('every decision has a five-check trace ending at the deciding check', () =>
     const decisive = actual.steps.filter(s => s.status === 'stop' || s.status === 'override');
     if (actual.bucket === 'low') assert.equal(decisive.length, 1, sample.id);
     else assert.ok(actual.steps.every(s => s.status !== 'stop'), sample.id);
+  }
+});
+
+test('phrase regressions show the deciding phrase and action in their trace', () => {
+  for (const sample of cases.filter(sample => sample.expectedRule)) {
+    const actual = classify(sample, { ...defaultSettings, ...sample.settings });
+    if (sample.expectedRule === 'Context says it can wait') {
+      assert.equal(actual.steps[3].status, 'stop', sample.id);
+      const suppression = actual.marks.find(mark => mark.kind === 'suppress');
+      assert.ok(suppression, sample.id);
+      assert.ok([sample.subject, sample.body].filter(Boolean).join(' ').includes(suppression.phrase), sample.id);
+    }
+    if (sample.expectedRule === 'Action within an hour') {
+      assert.equal(actual.steps[4].status, 'pass', sample.id);
+      assert.ok(actual.marks.some(mark => mark.kind === 'action'), sample.id);
+    }
+    if (sample.expectedPhrase) assert.ok(actual.marks.some(mark => mark.kind === 'urgent' && mark.phrase === sample.expectedPhrase), sample.id);
   }
 });
